@@ -37,11 +37,17 @@ data OpType =
   deriving (Show,Eq,Ord)
 
 type Name = String
+type Value = String
 
-type PortId = Id
+type PortId = String
+type Id = String
+
 type In = PortId
+type Out = Port
 
-data Out = SinglePort PortId | MultiPort PortId [Out]     deriving (Show,Eq,Ord)
+type InPort = Port
+type OutPort = Port
+data Port = SinglePort PortId | MultiPort PortId [Out]     deriving (Show,Eq,Ord)
 {-
 Als een out(port) gewoon 1 enkele waarde teruggeeft,
 dan is het een 'SinglePort portId'
@@ -62,12 +68,4 @@ MultiPort res_g
       [ SinglePort res_g_id
         SinglePort res_g_string ]
 -}
-
-
-type Port = Out
-type InPort = Port
-type OutPort = Port
-
-type Value = String
-type Id = String
 
