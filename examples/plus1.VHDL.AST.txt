@@ -1,0 +1,59 @@
+voorbeeldAST:
+
+LUEntity geeft de volgende info:
+plus1Component_0 heeft vier signalen waarvan 1 uit en 3 in. vooral "xzcoY3" en "reszcp6zcp63"zijn hier van belang. 
+Er wordt aangegeven welk signaal een ingang is en welke een uitgang. plus1Component_0 zou kunnen worden gezien als een functie met 3 ingangen ("reszcp6zcp63","clock" en "resetn") en ��n uitgang ("reszcp6zcp63"). Dus:
+Function plus1Component_0 (Just plus1Component_0) ["reszcp6zcp63","clock","resetn"] "reszcp6zcp63" ([??],[??]) () zou uit deze date gehaald kunnen worden.
+([??],[??]) hier omdat de inwendige componenten en draden hier niet in te vinden zijn.
+
+In LUArch geeft de VHDL naam (NSimple "plus1Component_0")  aan dat hier "plus1Component_0" verder gespecificeerd wordt.
+Welke informatie het VHDLId "structural" hier geeft is verder onbekend.
+
+In de lijst met BlockDecItem's kunnen subprogram bodies en signal declarations staan. 
+In dit geval alleen signaal declaraties. 
+Deze signaal declaraties hebben geen expressies. Ze zijn van type signed_8,maar dat is nu even niet relevant.
+De inwendige signalen "uzcp23" en "argzcpczcpc4" worden hier aangemaakt.
+
+De tweede lijst is de lijst met concurrent statements. 
+Dit voorbeeld bevat alleen concurrent_signal_assignment_statement type statements.
+Deze hebben geen when-else en geen When, maar alleen een Wform met daarin een lijst van Wform elementen. 
+Deze hebben de vorm WformElem expr (mayby expr). 
+De eerste heeft expressie PrimName (NSimple "uzcp23") en verwijst naar het signaal "uzcp23". 
+Dit eerste deel geeft aan dat de uitgang "reszcp6zcp63" gekoppeld is aan "uzcp23".
+
+De tweede concurrent statement telt de uitkomsten van signalen "xzcoY3" en "argzcpczcpc4" op en zet deze in "uzcp23".              
+
+De derde doet een function call met de naam "to_signed".De associatie elementen hebben alleen een eigenlijk deel (voor de pijl staat Nothing).
+De eerste waarde in de lijst met associatieelementen is een expressie: de literal 1 en de tweede soortgelijk de literal 8.
+Op de een of andere manier wordt dit dan gekoppeld aan "argzcpczcpc4, maar ik zie niet in hoe.......
+
+("plus1Component_0",DesignFile 
+	[	Use (NSelected (NSimple "work" :.: SSimple "types") :.: All),
+		Use (NSimple "work" :.: All),Library "IEEE",
+		Use (NSelected (NSimple "IEEE" :.: SSimple "std_logic_1164") :.: All),
+		Use (NSelected (NSimple "IEEE" :.: SSimple "numeric_std") :.: All),
+		Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)
+	] 
+	[	LUEntity (EntityDec "plus1Component_0" 
+		[	IfaceSigDec "xzcoY3" In "signed_8",
+			IfaceSigDec "reszcp6zcp63" Out "signed_8",
+			IfaceSigDec "clock" In "std_logic",
+			IfaceSigDec "resetn" In "std_logic"
+		])
+		,LUArch (ArchBody "structural" (NSimple "plus1Component_0") 
+		[	BDISD (SigDec "uzcp23" "signed_8" Nothing),
+			BDISD (SigDec "argzcpczcpc4" "signed_8" Nothing)
+		] 
+		[	CSSASm (NSimple "reszcp6zcp63" :<==: ConWforms [] 
+				(Wform [WformElem (PrimName (NSimple "uzcp23")) Nothing]) 
+				Nothing)
+			,CSSASm (NSimple "uzcp23" :<==: ConWforms [] (Wform [WformElem (PrimName (NSimple "xzcoY3") :+: PrimName (NSimple "argzcpczcpc4")) Nothing]) Nothing)
+			,CSSASm (NSimple "argzcpczcpc4" :<==: ConWforms [] (Wform 
+			[WformElem (PrimFCall (FCall (NSimple "to_signed") 
+				[Nothing :=>: ADExpr (PrimLit "1")
+				,Nothing :=>: ADExpr (PrimLit "8")
+				])) Nothing
+			])
+			Nothing)
+		])
+	])
