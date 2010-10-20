@@ -25,19 +25,9 @@ data ArchElem a =
 data Wire a = Wire (Maybe Name) PortId PortId a     deriving (Show,Eq,Ord)
 --                     naam     source dest
 
-data OpType =
-  OpPlus |
-  OpMin |
-  OpMult |
-  OpDiv |
-  OpAnd |
-  OpOr |
-  OpXor
-  -- ...
-  deriving (Show,Eq,Ord)
-
 type Name = String
 type Value = String
+type OpType = String
 
 type PortId = String
 type Id = String
