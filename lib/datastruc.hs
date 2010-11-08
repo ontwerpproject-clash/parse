@@ -19,7 +19,8 @@ data ArchElem a =
         In  -- ^ de select ingang, die selecteert welke ingang er doorgaat naar de uitgang
         a |
     
-    Register Id (Maybe In) Out a
+    Register Id (Maybe In) Out a |
+    PortReference Port
     deriving (Show,Eq,Ord)
 
 data Wire a = Wire (Maybe Name) PortId PortId a     deriving (Show,Eq,Ord)
@@ -37,7 +38,7 @@ type Out = Port
 
 type InPort = Port
 type OutPort = Port
-data Port = SinglePort PortId | MultiPort PortId [Out]     deriving (Show,Eq,Ord)
+data Port = SinglePort PortId | MultiPort PortId [Port]     deriving (Show,Eq,Ord)
 {-
 Als een out(port) gewoon 1 enkele waarde teruggeeft,
 dan is het een 'SinglePort portId'

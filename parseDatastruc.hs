@@ -29,6 +29,11 @@ outOf (Operator q w es r t)=extract (r)
                             where extract (Normal x)=x
 outOf (Literal q v o a)=extract (o)
                         where extract (Normal x)=x
+outOf (PortReference p)=extract (p)
+                        where extract (SinglePort x)=x
+                              extract (MultiPort x [y])= extract y  --dit werkt voor de huidige manier van selected names parsen
+                        
+
 
 getN (o,ws,ops,n,m)=n
 getM (o,ws,ops,n,m)=m
