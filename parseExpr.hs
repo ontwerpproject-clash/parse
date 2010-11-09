@@ -30,7 +30,7 @@ addSubportToBottom (MultiPort x [z]) y = MultiPort x [addSubportToBottom z y]
 
 parseFCall (FCall (NSimple "to_signed")
              [Nothing :=>: ADExpr (PrimLit x)
-		     ,Nothing :=>: ADExpr (PrimLit y) n m= parseExpr (PrimLit x) n m --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
+		     ,Nothing :=>: ADExpr (PrimLit y)] n m= parseExpr (PrimLit x) n m --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
 
 parseFCall (FCall functionName assocElems)) n m
                                = (Function (fName ++ operatorId m) (Just fName) inports outport ([],[]) () --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
@@ -59,9 +59,9 @@ parseAssocElem (Just x :=>: y)= (PortReference (SinglePort ("Just _ :=>: _ kan n
 parseFName :: VHDLName -> String
 parseFName (NSimple x)                 = parseId x
 parseFName (NSelected vhdlName :.: id) = parseId id
-parseFName (NIndexed x)                = SinglePort ("kan nog niet geparsd worden" ++ show (x))
-parseFName (NSlice x)                  = SinglePort ("kan nog niet geparsd worden" ++ show (x))
-parseFName (NAttribute x)              = SinglePort ("kan nog niet geparsd worden" ++ show (x))
+parseFName (NIndexed x)                = "kan nog niet geparsd worden" ++ show (x)
+parseFName (NSlice x)                  = "kan nog niet geparsd worden" ++ show (x)
+parseFName (NAttribute x)              ="kan nog niet geparsd worden" ++ show (x)
 
 
 
