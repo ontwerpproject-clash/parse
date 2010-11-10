@@ -27,25 +27,38 @@ parseVhdlAsts vhdls
     topentity = vhdls !! 1
 
 parseTopEntity (VHDLId, DesignFile) -> ArchElem
---TODO parseTopEntity (id,Designfile) =
+--TODO met de VHDLId moet misschien nog wat worden gedaan
+parseTopEntity (id,df) = parseDesignFile(df)
 
 parseDesignFile :: DesignFile -> ArchElem
-parseDesignFile (DesignFile id (l:ls)) = (Function id (Just id) _ _ _)
+-- TODO voor als nog wordt er niet met de ContextItems van de DesignFile gedaan. Hier moet de id uit gehaald worden, voor zover test
+parseDesignFile (DesignFile contextItems ls = Function "test" parseLibraryUnits ls
+
+-- TODO mergen van libraries moet nog gebeuren
+parseLibraryUnits (l:ls) = first
   where
-    --TODO (res_a,res_w,res_aw,n,m) = parseDesignFile ls
-		--TODO (a,w,aw,res_n,res_m) = parseLibraryUnit l
-parseDesignFile (DesignFile id (l:[])) = parseLibraryUnit l
+    res = parseLibraryUnits ls
+    first = parseLibraryUnit l
+parseLibraryUnits (l:[]) = parseLibraryUnit l
 
---TODO doe de merging van de LUEntity en de LUArch
-mergeLibraryUnits x y = undefined
-
---TODO
---parseLibraryUnit
-
-
+parseLibraryUnit(LUEntity x)      = parseLUEntity x
+parseLibraryUnit(LUArch x)        = parseLUArch x
+parseLibraryUnit(LUPackageDec x)  = parseLUPackageDec x
+parseLibraryUnit(LUPackageBody x) = parseLUPackageBody x
 
 -- VHDL.AST: LUEntity EntityDec
-parseLUEntity(LUEntity x) = parseEntityDec x
+parseLUEntity(x) = parseEntityDec x
+-- VHDL.AST: LUArch ArchBody
+parseLUArch(x) = parseArchBody x
+--TODO
+-- parseLuPackageDec en parseLUPackageBody
+
+
+--parseEntityDec::EntityDec-> Int-> Function
+--parseEntityDec (EntityDec id isds) n=Function (parseId id) (Just (parseId id)) ins (turnIdsToOut outs n) ([],[]) ()
+--                                     where isdsParsed=map parseEntityDec isds
+--                                           ins=getIns isdsParsed
+--                                           outs=getOuts isdsParsed
 
 parseEntityDec::EntityDec-> [(VHDLId, (PortID->Port))] -> Function
 parseEntityDec (EntityDec id isds) typeTable = Function name (Just name) ins (MultiPort (name ++ "_out") outs) ([],[]) ()
@@ -84,7 +97,7 @@ parseConcSm  (CSBSm x)=undefined
 parseConcSm (CSSASm (s :<==: x)) = (PortReference (parseVHDLName s),result) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
                                          where result=parseConWFoms x
 										 
-										
+{-										
 parseConcSm  (CSISm x)=undefined	
 parseConcSm  (CSPSm x)=undefined	
 parseConcSm  (CSGSm x)=undefined	
@@ -109,10 +122,17 @@ parseSigDec (SigDec id t (just expr))=undefined
 -- VHDL.AST: LUArch ArchBody
 parseLUArch(LUArch x) = parseArchBody x
 
---TODO
--- parseLuPackageDeck en parseLUPackageBody
---TODO
---parseArchBody 
+--EntityDec VHDLId [IfaceSigDec]
+--VHDLId kan over worden geslagen want deze wordt nergens voor gebruikt
+--parseEntityDec EntityDec id is n m= parseIfaceSigDecs is n m
+-}
+
+-- ArchBody VHDLId VHDLName [BlockDecItem] [ConcSm]
+parseArchBody id n bdi cs = res_cons
+  where
+    -- TODO DBSI ook verwerken
+    --res_blocks = parseBlockDecItems(dbi)
+    res_concs = parseConcSms(cs) n m
 
 --TODO
 --parseBlockDecItem
@@ -120,20 +140,36 @@ parseLUArch(LUArch x) = parseArchBody x
 --TODO
 --parseBDISD
 --TODO ook nog BDISPB parsen
+parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
+parseConcSms(c:[]) n m = (parseConcSm c n m):[]
 
---TODO: CSBSm BlockSm	& CSISm CompInsSm	 & CSPSm ProcSm	 & CSGSm GenerateSm 
--- VHDL.AST: CSSASm ConSigAssignSm	
-parseConcSm(CSSASm x) = parseConSigAssignSm x
+parseConcSm(CSBSm c) n m = parseBlockSm c n m
+parseConcSm(CSSASm x) n m = parseConSigAssignSm x n m
+parseConcSm(CSISm c) n m = parseCompInsSm c n m
+parseConcSm(CSPSm c) n m = parseProcSm c n m
+parseConcSm(CSGSm c) n m = parseGenerateSm c n m
 
-parseConSigAssignSm(x :<==: y) n m = (a, w, as, b, c)
-						where
-							(a, w, as, b, c) = parseConWforms y n m
-							-- nog een soort van tweede iteratie die de x linkt aan de input van een andere operator
+--TODO er moet ook nog iets met de VHDLName worden gedaan. Belangrijk voor de wires.
+parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
+-- nog een soort van tweede iteratie die de x linkt aan de input van een andere operator
 
+--ConWforms [WhenElse] Wform (Maybe When)
+--TODO programmeer WhenElse, wordt niet in het voorbeeld gebruikt.
+--TODO wanneer het niet NOTHING is.
+parseConWforms (whenelse f Nothing) n m = parseWform f n m
 
+--TODO Wform kan ook worden aangeroepen met constructor Unaffected
+parseWform f n m = parseWformElems f n m
+
+parseWformElems (f:fs) n m = (parseWformElem f n m):(parseWormElems fs n m)
+parseWformElems (f:[]) n m = (parseWformElem f n m):[]
+
+--TODO de maybe kan ook voorkomen, maar niet in het voorbeeld
+-- WformElem Expr (Maybe Expr)   
+parseWformElem (WformElem f Nothing) n m = parseExpr f n m
               
-              
-              
+--== Helper functions
+--=========================              
 parseMode (In)=True
 parseMode (Out)=False
 
@@ -144,10 +180,7 @@ getOuts::[(Id,bool)]-> [Id]
 getOuts=filter (x-> not(mysnd x)) 
 
 turnIdsToOut::[Id]-> Int-> Out
-turnIdsToOut [x] n =Normal x
-turnIdsToOut [] n  =Normal "deze wordt nooit gebruikt; niet tekenen."
-turnIdsToOut x n =Tuple (newPortId (n)) (map turnIdToOud x)
+turnIdsToOut [x] n =SinglePort x
+turnIdsToOut [] n  =SinglePort "deze wordt nooit gebruikt; niet tekenen."
+turnIdsToOut x n =MultiPort (newPortId (n)) (map turnIdToOud x)
                   where turnIdToOud y=Normal y
-
-parseEntityDec (IfaceSigDec id m type)=((parseId id),parseMode m)  ||met het type van het signaal wordt nog niets gedaan
-

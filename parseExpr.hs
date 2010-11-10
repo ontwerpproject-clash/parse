@@ -1,15 +1,18 @@
-
-
 parseExpr ::Expr-> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 
+--== Helper functions
+addSubportToBottom :: Port -> Port -> Port
+addSubportToBottom (SinglePort x) y = MultiPort x [y]
+addSubportToBottom (MultiPort x [z]) y = MultiPort x [addSubportToBottom z y]
 
 
--- Vincent code
+
+
+--=========================
+
 parseExpr (PrimFCall x) n m = parseFCall x n m 
 
--- Marten code
-
-parseExpr (PrimLit c) n m = ((Literal (operatorId m) c (Normal (newPortId n)) ()),[],[],n+1,m+1)
+parseExpr (PrimLit c) n m = ((Literal (operatorId "lit":m) c (Normal (newPortId n)) ()),[],[],n+1,m+1)
 parseExpr (PrimName x) n m= PortReference (parseVHDLName x) --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
 
 --tijdelijke naamparseer voor in expressies:
@@ -21,12 +24,6 @@ parseVHDLName (NSelected vhdlName :.: id) = addSubportToBottom ((parseVHDLName v
 parseVHDLName (NIndexed x)                = SinglePort ("kan nog niet geparsd worden" ++ show (x))
 parseVHDLName (NSlice x)                  = SinglePort ("kan nog niet geparsd worden" ++ show (x))
 parseVHDLName (NAttribute x)              = SinglePort ("kan nog niet geparsd worden" ++ show (x))
-
-addSubportToBottom :: Port -> Port -> Port
-addSubportToBottom (SinglePort x) y = MultiPort x [y]
-addSubportToBottom (MultiPort x [z]) y = MultiPort x [addSubportToBottom z y]
-
-
 
 parseFCall (FCall (NSimple "to_signed")
              [Nothing :=>: ADExpr (PrimLit x)
@@ -47,14 +44,11 @@ parseFCall (FCall functionName assocElems)) n m
                                         associatedOutports=map outOf subParse
                                         outport=newPortId (n) --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
 
-
 parseAssocElem (Nothing :=>: (Open)) n m=  (PortReference (SinglePort ("Nothing :=>: (Open) kan nog niet geparsd worden")),[],[],n,m)
 parseAssocElem (Nothing :=>: (ADExpr e)) n m= parseExpr e n m
 parseAssocElem (Nothing :=>: (ADName n)) n m= parseExpr (PrimName x) n m
 --Hiervoor moet x waarschijnlijk opgezocht kunnen worden en moet dus mogelijk meer informatie aan parseExpr worden meegegeven:
 parseAssocElem (Just x :=>: y)= (PortReference (SinglePort ("Just _ :=>: _ kan nog niet geparsd worden")),[],[],n,m)
-
-
 
 parseFName :: VHDLName -> String
 parseFName (NSimple x)                 = parseId x
@@ -62,9 +56,6 @@ parseFName (NSelected vhdlName :.: id) = parseId id
 parseFName (NIndexed x)                = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NSlice x)                  = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NAttribute x)              ="kan nog niet geparsd worden" ++ show (x)
-
-
-
 
 parseExpr (And x y) n m=(Operator  (operatorId m) "and" [in1,in2] (Normal (newPortId (n+2))) () ,
                         [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
@@ -177,6 +168,15 @@ parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (Normal (newPo
                                in1=newPortId n 
                                in2=newPortId (n+1)
 
+parseExpr (x :+: y) n m=(Operator  (operatorId m) "+" [in1,in2] (Normal (newPortId (n+1))) () ,
+                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
+                         where subOpX=parseExpr x (n+2) (m+1)
+                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
+                               in1=newPortId n 
+                               in2=newPortId (n+1)                               
+
 parseExpr (Neg x) n m=(Operator  (operatorId m) "neg" [in1] (Normal (newPortId (n+1))) () ,
                         [Wire (Just "num") (outOf (myfst subOpX)) in1 ()] ++ (mysnd subOpX),
                         [myfst subOpX] ++ (trd subOpX), getN subOpX, getM subOpX)
@@ -188,6 +188,8 @@ parseExpr (Pos x) n m=(Operator  (operatorId m) "pos" [in1] (Normal (newPortId (
                         [myfst subOpX] ++ (trd subOpX), getN subOpX, getM subOpX)
                          where subOpX=parseExpr x (n+3) (m+1)
                                in1=newPortId n 
+
+
 -- soortgelijk kan gedaan worden voor Adding Operators,Multiplying Operators en Shift Operators en Miscellaneous Operators
 {-
 parseExpr (Aggregate eas) n m=Function (operatorId m) Nothing [] out (map trd subElems,map mysnd subElems) ()
