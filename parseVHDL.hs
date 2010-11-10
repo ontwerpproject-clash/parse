@@ -47,13 +47,65 @@ mergeLibraryUnits x y = undefined
 -- VHDL.AST: LUEntity EntityDec
 parseLUEntity(LUEntity x) = parseEntityDec x
 
-parseEntityDec::EntityDec-> Int-> Function
-parseEntityDec (EntityDec id isds) n=Function (parseId id) (Just (parseId id)) ins (turnIdsToOut outs n) ([],[]) ()
-                                     where isdsParsed=map parseEntityDec isds
-                                           ins=getIns isdsParsed
-                                           outs=getOuts isdsParsed
+parseEntityDec::EntityDec-> [(VHDLId, (PortID->Port))] -> Function
+parseEntityDec (EntityDec id isds) typeTable = Function name (Just name) ins (MultiPort (name ++ "_out") outs) ([],[]) ()
+                                                                where name=parseId id
+																      isdsParsed=map (parseIfaceSigDec typeTable) isds
+                                                                      ins=getIns isdsParsed
+                                                                      outs=getOuts isdsParsed
 
-     
+getIns :: [(Port,bool)]-> [Port]
+getIns ((x,True):xs)   =x: (getIns xs)
+getIns ((x,False):xs)  =getIns xs
+getOuts :: [(Port,bool)]-> [Port]
+getOuts ((x,True):xs)  =getIns xs
+getOuts ((x,False):xs) =x: (getIns xs)
+
+
+parseIfaceSigDec :: [(VHDLId, (PortID->Port))] -> IfaceSigDec -> (Port,Bool)
+parseIfaceSigDec typeTable (IfaceSigDec sigId In t) = (currentMatch (parseId sigId),True) 
+                                                       where currentMatch=findInTable typeTable t            
+parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)= (currentMatch (parseId sigId),False) 
+                                                       where currentMatch=findInTable typeTable t      
+
+findInTable :: [(x,y)] -> x -> y
+findInTable  [] t=error "This type doesn't seem to exist!" ++ show t
+findInTable ((x,y):ts) t |(x==t)         =y
+                         |otherwise      =findInTable ts t
+   
+   
+parseArchBody :: parseArchBody -> [ArchElem a] -> [ArchElem a]
+parseArchBody (ArchBody "structural" (NSimple x) bs cs ) fs=fs
+                                                             where parsedBs=map parseBlockDecItem bs
+															       parsedCs=map parseConcSm cs
+																   
+	
+parseConcSm  (CSBSm x)=undefined													   
+parseConcSm (CSSASm (s :<==: x)) = (PortReference (parseVHDLName s),result) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
+                                         where result=parseConWFoms x
+										 
+										
+parseConcSm  (CSISm x)=undefined	
+parseConcSm  (CSPSm x)=undefined	
+parseConcSm  (CSGSm x)=undefined	
+
+
+parseConWforms ([] w Nothing)=parseWform w
+parseConWforms (_ _ _)=undefined
+
+parseWform (Unaffected)=undefined
+parseWform (Wform [w]) =parseWformElem w
+
+parseWformElem (WformElem e Nothing)=parseExpr e
+parseWformElem (WformElem _ (Just _))=undefined
+   
+parseBlockDecItem (BDISPB s)=undefined
+parseBlockDecItem (BDISD s) =parseSigDec s
+
+parseSigDec :: SigDec -> String
+parseSigDec (SigDec id t Nothing) = parseId id
+parseSigDec (SigDec id t (just expr))=undefined
+   
 -- VHDL.AST: LUArch ArchBody
 parseLUArch(LUArch x) = parseArchBody x
 
