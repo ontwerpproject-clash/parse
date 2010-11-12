@@ -82,7 +82,7 @@ parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)= (currentMatch (parseId sig
                                                        where currentMatch=findInTable typeTable t      
 
 findInTable :: [(x,y)] -> x -> y
-findInTable  [] t=error "This type doesn't seem to exist!" ++ show t
+findInTable  [] t=error $"This type doesn't seem to exist!" ++ show t
 findInTable ((x,y):ts) t |(x==t)         =y
                          |otherwise      =findInTable ts t
    
@@ -108,6 +108,9 @@ parseConWforms (_ _ _)=undefined
 
 parseWform (Unaffected)=undefined
 parseWform (Wform [w]) =parseWformElem w
+parseWform (Wform []) = error "Wform isn't supposed to have an empty list as argument."
+parseWform (Wform ws)=undefined
+
 
 parseWformElem (WformElem e Nothing)=parseExpr e
 parseWformElem (WformElem _ (Just _))=undefined
@@ -116,6 +119,7 @@ parseBlockDecItem (BDISPB s)=undefined
 parseBlockDecItem (BDISD s) =parseSigDec s
 
 parseSigDec :: SigDec -> String
+
 parseSigDec (SigDec id t Nothing) = parseId id
 parseSigDec (SigDec id t (just expr))=undefined
    

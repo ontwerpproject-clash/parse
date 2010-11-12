@@ -9,7 +9,8 @@ DesignFile [Use (NSelected (NSimple "work" :.: SSimple "types") :.: All)
            ,Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)
            ] 
 
-[LUEntity 
+[
+LUEntity 
      (EntityDec "maccComponent_0" [IfaceSigDec "dszc8Q2" In "Z2TZLz2cUZRsigned_8signed_8"
                                   ,IfaceSigDec "casevalzc9dzc9d3" Out "signed_8"
                                   ,IfaceSigDec "clock" In "std_logic"
@@ -17,7 +18,7 @@ DesignFile [Use (NSelected (NSimple "work" :.: SSimple "types") :.: All)
                                   ]
      )
 ,
-     LUArch (ArchBody "structural" (NSimple "maccComponent_0") 
+LUArch (ArchBody "structural" (NSimple "maccComponent_0") 
                                   [BDISD (SigDec "uzc922" "signed_8" Nothing)
                                   ,BDISD (SigDec "argzc9nzc9n3" "signed_8" Nothing)
                                   ,BDISD (SigDec "acczc902" "signed_8" Nothing)
