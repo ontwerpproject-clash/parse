@@ -9,6 +9,8 @@ For example a could be used to add information about the positioning of an objec
 Specified hardware by this structure always have a Function as the top node.
 
 -}
+module Datastruct where
+
 data ArchElem a =
     Function 
         Id 
