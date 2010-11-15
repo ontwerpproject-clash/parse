@@ -1,92 +1,96 @@
 module Main where
 
 import System (getArgs)
+import Data.Maybe (isNothing)
 
 -- GHC API
 import GHC.Paths ( libdir )
 
 -- VHDL Imports
-import Language.VHDL.AST
+import Language.VHDL.AST hiding (Function)
 
 -- CLasH Imports
 import CLasH.Translator(getVHDL)
 
+import Datastruct
+import ParseTypes
+
+type Types = [(VHDLId, PortId -> Port)]
 
 main = do
   args <- getArgs
   vhdls <- getVHDL libdir args
-  elem = parseVhdlAsts vhdls
-  putStrLn $ show elem
+  let elem = parseVhdlAsts vhdls
+    in putStrLn $ show elem
 
 -- TODO werk de hele lijst netjes af
 parseVhdlAsts :: [(VHDLId, DesignFile)] -> ArchElem ()
 parseVhdlAsts vhdls
-  = parseTopEntity topentity
+  = parseTopEntity topentity types
   where
-    types = head vhdls
+    typesAst = head vhdls
     topentity = vhdls !! 1
+    types = parseTypes typesAst
 
-parseTopEntity (VHDLId, DesignFile) -> ArchElem
+parseTopEntity :: (VHDLId, DesignFile) -> Types -> ArchElem ()
 --TODO met de VHDLId moet misschien nog wat worden gedaan
 parseTopEntity (id,df) = parseDesignFile(df)
 
-parseDesignFile :: DesignFile -> ArchElem
+parseDesignFile :: DesignFile -> Types -> ArchElem ()
 -- TODO voor als nog wordt er niet met de ContextItems van de DesignFile gedaan. Hier moet de id uit gehaald worden, voor zover test
-parseDesignFile (DesignFile contextItems ls = Function "test" parseLibraryUnits ls
+parseDesignFile (DesignFile contextItems ls) types = parseEntity ls types
 
--- TODO mergen van libraries moet nog gebeuren
-parseLibraryUnits (l:ls) = first
+parseEntity ((LUEntity e):ls) types = parseEntityDec e ls types
+
+parseEntityDec (EntityDec id sigs) ls types = result
   where
-    res = parseLibraryUnits ls
-    first = parseLibraryUnit l
-parseLibraryUnits (l:[]) = parseLibraryUnit l
+    result     = Function (parseId id) Nothing ins out (parseArchBody ls) ()
+    parsedSigs = filter (\(IfaceSigDec id _ _) -> fromVHDLId id `notElem` ["clock","resetn"]) sigs
+    ports = map (parseIfaceSigDec types) parsedSigs
+    ins = map (\(p,_) -> p) $ filter snd ports
+    out = head $ map (\(p,_) -> p) $ filter (not . snd) ports
 
-parseLibraryUnit(LUEntity x)      = parseLUEntity x
-parseLibraryUnit(LUArch x)        = parseLUArch x
-parseLibraryUnit(LUPackageDec x)  = parseLUPackageDec x
-parseLibraryUnit(LUPackageBody x) = parseLUPackageBody x
 
--- VHDL.AST: LUEntity EntityDec
-parseLUEntity(x) = parseEntityDec x
+parseIfaceSigDec :: Types -> IfaceSigDec -> (Port,Bool)
+parseIfaceSigDec typeTable (IfaceSigDec sigId In t)
+  | isNothing found = error $ "Could not find type:" ++ show t
+  | otherwise = (getPort (parseId sigId),True)
+  where
+    found = lookup t typeTable
+    Just getPort = found
+parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)
+  | isNothing found = error $ "Could not find type:" ++ show t
+  | otherwise = (getPort (parseId sigId),False)
+  where
+    found = lookup t typeTable
+    Just getPort = found
+
+
+
+
+
 -- VHDL.AST: LUArch ArchBody
-parseLUArch(x) = parseArchBody x
---TODO
--- parseLuPackageDec en parseLUPackageBody
+parseLUArch x = parseArchBody x
 
 
---parseEntityDec::EntityDec-> Int-> Function
---parseEntityDec (EntityDec id isds) n=Function (parseId id) (Just (parseId id)) ins (turnIdsToOut outs n) ([],[]) ()
---                                     where isdsParsed=map parseEntityDec isds
---                                           ins=getIns isdsParsed
---                                           outs=getOuts isdsParsed
-
-parseEntityDec::EntityDec-> [(VHDLId, (PortID->Port))] -> Function
-parseEntityDec (EntityDec id isds) typeTable = Function name (Just name) ins (MultiPort (name ++ "_out") outs) ([],[]) ()
-                                                                where name=parseId id
-																      isdsParsed=map (parseIfaceSigDec typeTable) isds
-                                                                      ins=getIns isdsParsed
-                                                                      outs=getOuts isdsParsed
-
-getIns :: [(Port,bool)]-> [Port]
-getIns ((x,True):xs)   =x: (getIns xs)
-getIns ((x,False):xs)  =getIns xs
-getOuts :: [(Port,bool)]-> [Port]
-getOuts ((x,True):xs)  =getIns xs
-getOuts ((x,False):xs) =x: (getIns xs)
+parseArchBody x = ([],[])
 
 
-parseIfaceSigDec :: [(VHDLId, (PortID->Port))] -> IfaceSigDec -> (Port,Bool)
-parseIfaceSigDec typeTable (IfaceSigDec sigId In t) = (currentMatch (parseId sigId),True) 
-                                                       where currentMatch=findInTable typeTable t            
-parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)= (currentMatch (parseId sigId),False) 
-                                                       where currentMatch=findInTable typeTable t      
 
-findInTable :: [(x,y)] -> x -> y
-findInTable  [] t=error $"This type doesn't seem to exist!" ++ show t
-findInTable ((x,y):ts) t |(x==t)         =y
-                         |otherwise      =findInTable ts t
-   
-   
+
+
+-- Hulp functies
+-------------------------
+parseId::  VHDLId-> Id
+parseId s=fromVHDLId s
+
+
+--- oude troep??
+
+
+
+{-
+
 parseArchBody :: parseArchBody -> [ArchElem a] -> [ArchElem a]
 parseArchBody (ArchBody "structural" (NSimple x) bs cs ) fs=fs
                                                              where parsedBs=map parseBlockDecItem bs
@@ -171,20 +175,5 @@ parseWformElems (f:[]) n m = (parseWformElem f n m):[]
 --TODO de maybe kan ook voorkomen, maar niet in het voorbeeld
 -- WformElem Expr (Maybe Expr)   
 parseWformElem (WformElem f Nothing) n m = parseExpr f n m
-              
---== Helper functions
---=========================              
-parseMode (In)=True
-parseMode (Out)=False
 
-getIns::[(Id,bool)]-> [Id]
-getIns=filter (x-> mysnd x) 
-
-getOuts::[(Id,bool)]-> [Id]
-getOuts=filter (x-> not(mysnd x)) 
-
-turnIdsToOut::[Id]-> Int-> Out
-turnIdsToOut [x] n =SinglePort x
-turnIdsToOut [] n  =SinglePort "deze wordt nooit gebruikt; niet tekenen."
-turnIdsToOut x n =MultiPort (newPortId (n)) (map turnIdToOud x)
-                  where turnIdToOud y=Normal y
+-}
