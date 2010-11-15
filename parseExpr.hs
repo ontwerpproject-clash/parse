@@ -13,8 +13,9 @@ addSubportToBottom (MultiPort x [z]) y = MultiPort x [addSubportToBottom z y]
 parseExpr (PrimFCall x) n m = parseFCall x n m 
 
 parseExpr (PrimLit c) n m = ((Literal (operatorId "lit":m) c (Normal (newPortId n)) ()),[],[],n+1,m+1)
-parseExpr (PrimName x) n m= PortReference (parseVHDLName x) --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
-
+parseExpr (PrimName x) n m= PortReference (SinglePort (parseFName x)) --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
+                           --mogelijk dient dit PortReference (parseVHDLName x) te zijn.
+                           
 --tijdelijke naamparseer voor in expressies:
 parseVHDLName :: VHDLName -> Port
 parseVHDLName (NSimple x)                 = SinglePort (parseId x)
@@ -31,7 +32,7 @@ parseFCall (FCall (NSimple "to_signed")
 
 parseFCall (FCall functionName assocElems)) n m
                                = (Function (fName ++ operatorId m) (Just fName) inports outport ([],[]) () --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
-                                 ,[Wire Nothing (associatedOutports!i) (inports!i) ()| i<-[0..(inputLength-1)] ] ++ concat (map mysnd subParse)
+                                 ,[Wire Nothing (associatedOutports!i) (inports!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map mysnd subParse)
                                  ,concat(map trd subParse)
                                  ,n+inputLength
                                  ,m+1
@@ -52,7 +53,7 @@ parseAssocElem (Just x :=>: y)= (PortReference (SinglePort ("Just _ :=>: _ kan n
 
 parseFName :: VHDLName -> String
 parseFName (NSimple x)                 = parseId x
-parseFName (NSelected vhdlName :.: id) = parseId id
+parseFName (NSelected vhdlName :.: id) = (parseFName vhdlName) ++ "." ++ parseId id
 parseFName (NIndexed x)                = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NSlice x)                  = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NAttribute x)              ="kan nog niet geparsd worden" ++ show (x)
@@ -115,8 +116,8 @@ parseExpr (Xnor x y) n m=(Operator  (operatorId m) "xnor" [in1,in2] (Normal (new
                                in2=newPortId (n+1)
 
 parseExpr (x :=: y) n m=(Operator  (operatorId m) "=" [in1,in2] (Normal (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
@@ -124,8 +125,8 @@ parseExpr (x :=: y) n m=(Operator  (operatorId m) "=" [in1,in2] (Normal (newPort
                                in2=newPortId (n+1)
 
 parseExpr (x :/=: y) n m=(Operator  (operatorId m) "/=" [in1,in2] (Normal (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
@@ -142,8 +143,8 @@ parseExpr (x :<: y) n m=(Operator  (operatorId m) "<" [in1,in2] (Normal (newPort
                                in2=newPortId (n+1)
 
 parseExpr (x :<=: y) n m=(Operator  (operatorId m) "<=" [in1,in2] (Normal (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
@@ -151,8 +152,8 @@ parseExpr (x :<=: y) n m=(Operator  (operatorId m) "<=" [in1,in2] (Normal (newPo
                                in2=newPortId (n+1)
 
 parseExpr (x :>: y) n m=(Operator  (operatorId m) ">" [in1,in2] (Normal (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
@@ -160,8 +161,8 @@ parseExpr (x :>: y) n m=(Operator  (operatorId m) ">" [in1,in2] (Normal (newPort
                                in2=newPortId (n+1)
 
 parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (Normal (newPortId (n+1))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+2) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
@@ -169,8 +170,8 @@ parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (Normal (newPo
                                in2=newPortId (n+1)
 
 parseExpr (x :+: y) n m=(Operator  (operatorId m) "+" [in1,in2] (Normal (newPortId (n+1))) () ,
-                        [Wire (Just "bool") (outOf (myfst subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
+                        [Wire (Just "num") (outOf (myfst subOpX)) in1 ()
+                        ,Wire (Just "num") (outOf (myfst subOpY)) in2 ()] ++ (mysnd subOpX) ++ (mysnd subOpY),
                         [myfst subOpX,myfst subOpY] ++ (trd subOpX) ++ (trd subOpY), getN subOpY, getM subOpY)
                          where subOpX=parseExpr x (n+2) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
