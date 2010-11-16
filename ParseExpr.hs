@@ -1,3 +1,5 @@
+module ParseExpr where
+
 parseExpr ::Expr-> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 
 --== Helper functions
