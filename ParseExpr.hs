@@ -61,7 +61,7 @@ parseExpr ::Expr-> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 
 parseExpr (PrimFCall x) n m = parseFCall x n m
 
-parseExpr (PrimLit c) n m = ((Literal (operatorId "lit" ++ show m) c (SinglePort (newPortId n)) ()),[],[],n+1,m+1)
+parseExpr (PrimLit c) n m = ((Literal ("lit" ++ operatorId m) c (SinglePort (newPortId n)) ()),[],[],n+1,m+1)
 parseExpr (PrimName x) n m= (PortReference (SinglePort (parseFName x)),[],[],n,m) --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
                            --mogelijk dient dit PortReference (parseVHDLName x) te zijn.
 parseExpr (And x y) n m=(Operator  (operatorId m) "and" [in1,in2] (SinglePort (newPortId (n+2))) () ,
@@ -166,20 +166,20 @@ parseExpr (x :>: y) n m=(Operator  (operatorId m) ">" [in1,in2] (SinglePort (new
                                in1=newPortId n 
                                in2=newPortId (n+1)
 
-parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (SinglePort (newPortId (n+1))) () ,
+parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (SinglePort (newPortId (n+2))) () ,
                         [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
                         ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
                         [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+2) (m+1)
+                         where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
                                in1=newPortId n 
                                in2=newPortId (n+1)
 
-parseExpr (x :+: y) n m=(Operator  (operatorId m) "+" [in1,in2] (SinglePort (newPortId (n+1))) () ,
+parseExpr (x :+: y) n m=(Operator  (operatorId m) "+" [in1,in2] (SinglePort (newPortId (n+2))) () ,
                         [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
                         ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
                         [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+2) (m+1)
+                         where subOpX=parseExpr x (n+3) (m+1)
                                subOpY=parseExpr y (getN subOpX) (getM subOpX)
                                in1=newPortId n 
                                in2=newPortId (n+1)                               
@@ -190,10 +190,10 @@ parseExpr (Neg x) n m=(Operator  (operatorId m) "neg" [in1] (SinglePort (newPort
                          where subOpX=parseExpr x (n+2) (m+1)
                                in1=newPortId n 
 
-parseExpr (Pos x) n m=(Operator  (operatorId m) "pos" [in1] (SinglePort (newPortId (n+2))) () ,
+parseExpr (Pos x) n m=(Operator  (operatorId m) "pos" [in1] (SinglePort (newPortId (n+1))) () ,
                         [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()] ++ (snd5 subOpX),
                         [fst5 subOpX] ++ (trd5 subOpX), getN subOpX, getM subOpX)
-                         where subOpX=parseExpr x (n+3) (m+1)
+                         where subOpX=parseExpr x (n+2) (m+1)
                                in1=newPortId n 
 
 
@@ -236,10 +236,10 @@ outOf (PortReference p)=extract (p)
                               extract (MultiPort x [y])= extract y  --dit werkt voor de huidige manier van selected names parsen
 
 
-operatorId::num -> String
-operatorId m= "A string"
+operatorId::Int -> String
+operatorId m= "operatorId" ++ show m
 
-newPortId m= "A string"
+newPortId m= "newPortId" ++ show m
 
 
 parseId::  VHDLId-> Id

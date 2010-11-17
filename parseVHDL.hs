@@ -137,18 +137,25 @@ addInternals _ _=error "can not add internals to an architecture element that is
 
 
 removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> ([Wire ()],[ArchElem ()])
-removeReferences (ws,(PortReference (SinglePort x):as)) table ins
- = ((fst r) ++ ws, snd r)
-  where r=  removeReferences ((ws \\ [w])  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
-        newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
-        (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
+removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
+  | x `elem` ins = (fst niksVeranderd, a: snd niksVeranderd) --HACKED??
+  | otherwise = ((fst r) ++ ws, snd r)
+    where
+      r=  removeReferences ((ws {-\\ [w]-})  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
+      newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
+      --(i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
+      niksVeranderd=  removeReferences (ws,as) table ins
+      Just res = lookup a table
+      i = getHighest $ outportOf$ fst5 res
+      
 removeReferences (ws,(PortReference (MultiPort _ _)):as) table ins = undefined --zal dit ooit voorkomen?
                                                                       where  r=  removeReferences (ws,as)
 removeReferences (ws,(a:as)) table ins= (fst r, a: snd r)
                               where  r=  removeReferences (ws,as) table ins
+removeReferences (ws,[]) table ins = (ws,[])
 
 findInof :: PortId -> [Wire a] -> (PortId,Wire a)
-findInof p []=error "blijkbaar moeten alle wires eerst worden gevonden aangezien er nu 1 mist.."
+findInof p []=error $ "kan " ++ show p ++ " niet vinden, blijkbaar moeten alle wires eerst worden gevonden aangezien er nu 1 mist.."
 findInof p ((w@(Wire _ x y _)):ws) |x==p       = (y,w)
                                    |otherwise = findInof p ws
 
@@ -157,14 +164,20 @@ resolveassociation table ins i =resolveAssociationNamed table ins i i
 
 resolveAssociationNamed ::  [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> String -> String -> ([Wire ()],[ArchElem ()])
 resolveAssociationNamed table ins outName i
-  =followUp
-  where Just currRes=lookup (PortReference $ SinglePort i) table
-        (firstElem,_,_,_,_)=currRes
-        PortReference (SinglePort firstElemStr) = firstElem -- TODO : kan dit ook multiport zijn?
-        doorgaan=checkIsReference firstElem && ( not (isInSignal firstElem ins))
-        followedUp=resolveassociation table ins firstElemStr
-        followUp |doorgaan =((fst followedUp) ++ (snd5 currRes) , (snd followedUp) ++ (trd5 currRes))
-                 |otherwise=( (Wire (Just i) (getHighest(outportOf firstElem)) outName () ) : (snd5 currRes),(trd5 currRes))
+--  | lkup == Nothing = error $ "We kunnen " ++ i ++ " niet vinden in :\n" ++ (unlines $ map show table)
+  | otherwise =followUp
+  where 
+    deze = (PortReference $ SinglePort i)
+    lkup =lookup deze table
+    Just currRes = lkup
+    (firstElem,_,_,_,_)=currRes
+    PortReference (SinglePort firstElemStr) = firstElem -- TODO : kan dit ook multiport zijn?
+    isIn = (isInSignal deze ins)
+    doorgaan=checkIsReference firstElem && ( not (isInSignal firstElem ins))
+    followedUp=resolveAssociationNamed table ins outName firstElemStr
+    followUp |isIn = ([],[])
+             |doorgaan =((fst followedUp) ++ (snd5 currRes) , (snd followedUp) ++ (trd5 currRes))
+             |otherwise=( (Wire (Just i) (getHighest(outportOf firstElem)) outName () ) : (snd5 currRes),(fst5 currRes : trd5 currRes))
 
 
 isInSignal (PortReference (SinglePort x)) ins=elem x ins
@@ -233,7 +246,7 @@ parseConcSm (CSSASm (s :<==: x)) n m
     where
       result :: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
       result=parseConWforms x n m
-      alleElementen = concat $ map (\(a,_,as,_,_) -> a:[] {-as-}) result
+      alleElementen = concat $ map (\(a,_,as,_,_) -> a:as) result
 parseConcSm  (CSISm x) n m =undefined
 parseConcSm  (CSPSm x) n m=undefined
 parseConcSm  (CSGSm x) n m=undefined
@@ -270,8 +283,8 @@ parseLUArch(LUArch x) = parseArchBody x
 --TODO
 --parseBDISD
 --TODO ook nog BDISPB parsen
+parseConcSms [] n m = []
 parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
-parseConcSms(c:[]) n m = (parseConcSm c n m):[]
 
 {-
 parseConcSm(CSBSm c) n m = parseBlockSm c n m
@@ -292,8 +305,9 @@ parseConWforms (ConWforms _ f _) n m = parseWform f n m
 --TODO Wform kan ook worden aangeroepen met constructor Unaffected
 parseWform (Wform f) n m = parseWformElems f n m
 
+parseWformElems [] n m = []
 parseWformElems (f:fs) n m = (parseWformElem f n m):(parseWformElems fs n m)
-parseWformElems (f:[]) n m = (parseWformElem f n m):[]
+--parseWformElems [] n m = []
 
 --TODO de maybe kan ook voorkomen, maar niet in het voorbeeld
 -- WformElem Expr (Maybe Expr)   
