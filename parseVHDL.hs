@@ -143,10 +143,10 @@ removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
     where
       r=  removeReferences ((ws {-\\ [w]-})  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
       newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
-      --(i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
+      (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
       niksVeranderd=  removeReferences (ws,as) table ins
-      Just res = lookup a table
-      i = getHighest $ outportOf$ fst5 res
+      --Just res = lookup a table
+      --i = getHighest $ outportOf$ fst5 res
       
 removeReferences (ws,(PortReference (MultiPort _ _)):as) table ins = undefined --zal dit ooit voorkomen?
                                                                       where  r=  removeReferences (ws,as)
@@ -156,9 +156,12 @@ removeReferences (ws,[]) table ins = (ws,[])
 
 findInof :: PortId -> [Wire a] -> (PortId,Wire a)
 findInof p []=error $ "kan " ++ show p ++ " niet vinden, blijkbaar moeten alle wires eerst worden gevonden aangezien er nu 1 mist.."
-findInof p ((w@(Wire _ x y _)):ws) |x==p       = (y,w)
-                                   |otherwise = findInof p ws
-
+findInof p ((w@(Wire name x y _)):ws)
+  |name /= Nothing && n == x = (y,w)
+  |x==p       = (y,w)
+  |otherwise = findInof p ws
+  where
+    Just n = name
 resolveassociation ::  [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> String -> ([Wire ()],[ArchElem ()])
 resolveassociation table ins i =resolveAssociationNamed table ins i i
 
@@ -242,7 +245,7 @@ third3 (x,y,z)=z
 parseConcSm :: ConcSm -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
 parseConcSm  (CSBSm x) n m =undefined
 parseConcSm (CSSASm (s :<==: x)) n m
-  = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,[],tail alleElementen,getN $ last result,getM $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
+  = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,snd5 $ last result,tail alleElementen,getN $ last result,getM $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
     where
       result :: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
       result=parseConWforms x n m
