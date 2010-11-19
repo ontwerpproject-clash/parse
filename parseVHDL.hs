@@ -166,11 +166,11 @@ resolveassociation ::  [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,In
 resolveassociation table ins i =resolveAssociationNamed table ins i i
 
 resolveAssociationNamed ::  [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> String -> String -> ([Wire ()],[ArchElem ()])
-resolveAssociationNamed table ins outName i
+resolveAssociationNamed table ins outName x
 --  | lkup == Nothing = error $ "We kunnen " ++ i ++ " niet vinden in :\n" ++ (unlines $ map show table)
   | otherwise =followUp
   where 
-    deze = (PortReference $ SinglePort i)
+    deze = (PortReference $ SinglePort x)
     lkup =lookup deze table
     Just currRes = lkup
     (firstElem,_,_,_,_)=currRes
