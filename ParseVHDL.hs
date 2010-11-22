@@ -1,18 +1,10 @@
-module Main where
+module ParseVHDL where
 
-import System (getArgs)
-import Data.Maybe (isNothing)
-import Data.Maybe(catMaybes)
+import Data.Maybe (isNothing,catMaybes)
 import Data.List
-
--- GHC API
-import GHC.Paths ( libdir )
 
 -- VHDL Imports
 import Language.VHDL.AST hiding (Function)
-
--- CLasH Imports
-import CLasH.Translator(getVHDL)
 
 import Helper
 import Datastruct
@@ -20,13 +12,6 @@ import ParseTypes
 import ParseExpr hiding (parseVHDLName)
 
 type Types = [(VHDLId, PortId -> Port)]
-
------------------------------------------start main----------------------------------------------   
-main = do
-  args <- getArgs
-  vhdls <- getVHDL libdir args
-  let elem = parseVhdlAsts vhdls
-    in putStrLn $ show elem
 
 -- TODO werk de hele lijst netjes af
 parseVhdlAsts :: [(VHDLId, DesignFile)] -> ArchElem ()
@@ -77,7 +62,7 @@ parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)
 -- VHDL.AST: LUArch ArchBody
 parseLUArch x = parseArchBody x
 
------------------------------------------parseArchBody----------------------------------------------   
+-----------------------------------------parseArchBody----------------------------------------------
 parseArchBody :: ArchBody -> [ArchElem ()] -> ArchElem ()
 parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) fs
    =newElem -- : (delete currentArchElem fs)
@@ -118,7 +103,7 @@ removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
       niksVeranderd=  removeReferences (ws,as) table ins
       --Just res = lookup a table
       --i = getHighest $ outportOf$ fst5 res
-      
+
 removeReferences (ws,(PortReference (MultiPort _ _)):as) table ins = undefined --zal dit ooit voorkomen?
                                                                       where  r=  removeReferences (ws,as)
 removeReferences (ws,(a:as)) table ins= (fst r, a: snd r)
@@ -140,7 +125,7 @@ resolveAssociationNamed ::  [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],I
 resolveAssociationNamed table ins outName x
 --  | lkup == Nothing = error $ "We kunnen " ++ i ++ " niet vinden in :\n" ++ (unlines $ map show table)
   | otherwise =followUp
-  where 
+  where
     deze = (PortReference $ SinglePort x)
     lkup =lookup deze table
     Just currRes = lkup
