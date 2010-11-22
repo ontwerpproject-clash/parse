@@ -1,18 +1,11 @@
 module ParseExpr where
 import Language.VHDL.AST hiding (Function)
 import Datastruct
+import Helper
 
-
--- == Helper functions
 addSubportToBottom :: Port -> Port -> Port
 addSubportToBottom (SinglePort x) y = MultiPort x [y]
 addSubportToBottom (MultiPort x [z]) y = MultiPort x [addSubportToBottom z y]
-
-
-
-
--- =========================
-
 
 --tijdelijke naamparseer voor in expressies:
 parseVHDLName :: VHDLName -> Port
@@ -25,23 +18,30 @@ parseVHDLName (NSlice x)                  = SinglePort ("kan nog niet geparsd wo
 parseVHDLName (NAttribute x)              = SinglePort ("kan nog niet geparsd worden" ++ show (x))
 
 parseFCall (FCall (NSimple (Basic "to_signed"))
-             [Nothing :=>: ADExpr (PrimLit x)
-             ,Nothing :=>: ADExpr (PrimLit y)]) n m= parseExpr (PrimLit x) n m --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
+  [Nothing :=>: ADExpr (PrimLit x)
+  ,Nothing :=>: ADExpr (PrimLit y)]) n m
+  = parseExpr (PrimLit x) n m 
+  --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
 
-parseFCall (FCall functionName assocElems) n m
-                               = (Function (fName ++ operatorId m) (Just fName) (map SinglePort inports) outport ([],[]) () --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
-                                 ,[Wire Nothing (associatedOutports!!i) (inports!!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map snd5 subParse)
-                                 ,concat(map trd5 subParse)
-                                 ,n+inputLength
-                                 ,m+1
-                                 )
-                                  where fName= parseFName functionName
-                                        newId= fName ++ operatorId m
-                                        subParse=[] --TODO mappen met doorgeven n en m : map (parseAssocElem n+inputLength m+1) assocElems
-                                        inputLength= length subParse --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-                                        inports=[newPortId (i+n)|i<- [0..(inputLength-1)]]
-                                        associatedOutports=map outOf subParse
-                                        outport=SinglePort $ newPortId (n) --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
+parseFCall (FCall functionName assocElems) n m =
+      (Function (fName ++ operatorId m) (Just fName) (map SinglePort inports) outport ([],[]) () 
+      --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
+      ,[Wire Nothing (associatedOutports!!i) (inports!!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map get2out5 subParse)
+      ,concat(map get3out5 subParse)
+      ,n+inputLength
+      ,m+1
+      )
+    where 
+      fName= parseFName functionName
+      newId= fName ++ operatorId m
+      subParse=[] 
+      --TODO mappen met doorgeven n en m : map (parseAssocElem n+inputLength m+1) assocElems
+      inputLength= length subParse 
+      --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
+      inports=[newPortId (i+n)|i<- [0..(inputLength-1)]]
+      associatedOutports=map outOf subParse
+      outport=SinglePort $ newPortId (n) 
+      --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
 
 parseAssocElem :: AssocElem -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 parseAssocElem (Nothing :=>: (Open)) n m=  (PortReference (SinglePort ("Nothing :=>: (Open) kan nog niet geparsd worden")),[],[],n,m)
@@ -67,233 +67,66 @@ parseExpr (PrimName x) n m= (PortReference (SinglePort (parseFName x)),[],[],n,m
 parseExpr (Aggregate eas) n m=undefined
 
 --is er een manier om n en m hier wer ta halen uit de code zoals bij Amanda?
-parseExpr (And x y) n m =parseBinExpr "and" x y n m
-parseExpr (Or x y)   n m=parseBinExpr "or" x y n m
-parseExpr (Xor x y)  n m=parseBinExpr "xor" x y n m
-parseExpr (Nand x y) n m=parseBinExpr "nand" x y n m
-parseExpr (Nor x y)  n m=parseBinExpr "nor" x y n m
-parseExpr (Xnor x y) n m=parseBinExpr "xnor" x y n m
-parseExpr (x :=: y)  n m=parseBinExpr "=" x y  n m
-parseExpr (x :/=: y)  n m=parseBinExpr "/=" x y n m
-parseExpr (x :<: y)  n m=parseBinExpr "<" x y n m
-parseExpr (x :<=: y)  n m=parseBinExpr "<=" x y n m
-parseExpr (x :>: y)  n m=parseBinExpr ">" x y n m
-parseExpr (x :>=: y)  n m=parseBinExpr ">=" x y n m
-parseExpr (x :+: y)  n m=parseBinExpr "+" x y n m
+parseExpr (And x y) n m   =parseBinExpr "and" x y n m
+parseExpr (Or x y) n m    =parseBinExpr "or" x y n m
+parseExpr (Xor x y) n m   =parseBinExpr "xor" x y n m
+parseExpr (Nand x y) n m  =parseBinExpr "nand" x y n m
+parseExpr (Nor x y) n m   =parseBinExpr "nor" x y n m
+parseExpr (Xnor x y) n m  =parseBinExpr "xnor" x y n m
+parseExpr (x :=: y) n m   =parseBinExpr "=" x y  n m
+parseExpr (x :/=: y) n m  =parseBinExpr "/=" x y n m
+parseExpr (x :<: y) n m   =parseBinExpr "<" x y n m
+parseExpr (x :<=: y) n m  =parseBinExpr "<=" x y n m
+parseExpr (x :>: y) n m   =parseBinExpr ">" x y n m
+parseExpr (x :>=: y) n m  =parseBinExpr ">=" x y n m
+parseExpr (x :+: y) n m   =parseBinExpr "+" x y n m
 
-parseExpr (Neg x) n m= parseUnairyExpr  "neg" x n m
-parseExpr (Pos x) n m= parseUnairyExpr  "pos" x n m
-
-
+parseExpr (Neg x) n m     =parseUnairyExpr "neg" x n m
+parseExpr (Pos x) n m     =parseUnairyExpr "pos" x n m
 
 --andere expressies gaan soortgelijk..
 --Dus soortgelijk kan gedaan worden voor Adding Operators,Multiplying Operators en Shift Operators en Miscellaneous Operators
 
-
 parseBinExpr:: String -> Expr -> Expr -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-parseBinExpr name x y n m = (Operator  (operatorId m) name [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                            [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                            ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                            [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                              where
-                                    subOpX=parseExpr x (n+3) (m+1)
-                                    subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                                    in1=newPortId n 
-                                    in2=newPortId (n+1)
+parseBinExpr name x y n m = 
+    (Operator  (operatorId m) name [in1,in2] (SinglePort (newPortId (n+2))) () ,
+    [Wire (Just "bool") (outOf (get1out5 subOpX)) in1 ()
+    ,Wire (Just "bool") (outOf (get1out5 subOpY)) in2 ()] ++ (get2out5 subOpX) ++ (get2out5 subOpY),
+    [get1out5 subOpX,get1out5 subOpY] ++ (get3out5 subOpX) ++ (get3out5 subOpY), get4out5 subOpY, get5out5 subOpY)
+  where
+    subOpX=parseExpr x (n+3) (m+1)
+    subOpY=parseExpr y (get4out5 subOpX) (get5out5 subOpX)
+    in1=newPortId n 
+    in2=newPortId (n+1)
 
 parseUnairyExpr :: String -> Expr -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-parseUnairyExpr name x n m=(Operator (operatorId m) name [in1] (SinglePort (newPortId (n+1))) () ,
-                           [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()] ++ (snd5 subOpX),
-                           [fst5 subOpX] ++ (trd5 subOpX), getN subOpX, getM subOpX)
-                            where
-                                  subOpX=parseExpr x (n+2) (m+1)
-                                  in1=newPortId n
-{-
-parseExpr (And x y) n m=(Operator  (operatorId m) "and" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                         [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-
-parseExpr (Or x y) n m=(Operator  (operatorId m) "or" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (Xor x y) n m=(Operator  (operatorId m) "xor" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (Nand x y) n m=(Operator  (operatorId m) "Nand" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-
-parseExpr (Nor x y) n m=(Operator  (operatorId m) "nNor" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-
-parseExpr (Xnor x y) n m=(Operator  (operatorId m) "xnor" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-
-parseExpr (x :=: y) n m=(Operator  (operatorId m) "=" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :/=: y) n m=(Operator  (operatorId m) "/=" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :<: y) n m=(Operator  (operatorId m) "<" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :<=: y) n m=(Operator  (operatorId m) "<=" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :>: y) n m=(Operator  (operatorId m) ">" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :>=: y) n m=(Operator  (operatorId m) ">=" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-parseExpr (x :+: y) n m=(Operator  (operatorId m) "+" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "num") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)                               
-
-
-
-
-parseExpr (Neg x) n m=(Operator (operatorId m) "neg" [in1] (SinglePort (newPortId (n+1))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()] ++ (snd5 subOpX),
-                        [fst5 subOpX] ++ (trd5 subOpX), getN subOpX, getM subOpX)
-                         where subOpX=parseExpr x (n+2) (m+1)
-                               in1=newPortId n 
-
-parseExpr (Pos x) n m=(Operator (operatorId m) "pos" [in1] (SinglePort (newPortId (n+1))) () ,
-                        [Wire (Just "num") (outOf (fst5 subOpX)) in1 ()] ++ (snd5 subOpX),
-                        [fst5 subOpX] ++ (trd5 subOpX), getN subOpX, getM subOpX)
-                         where subOpX=parseExpr x (n+2) (m+1)
-                               in1=newPortId n 
-
--}
-
-
-
-{-
-Dit is hoogstwaarschijnlijk fout:
-parseExpr (Aggregate eas) n m=Function (operatorId m) Nothing [] out (map trd5 subElems,map snd5 subElems) ()
-                              where out=Tuple (newPortId n) (map outOf (fst5 (subElems))
-                                    subElems=map parseElemAssoc eas
-                                    parseElemAssoc (ElemAssoc Others e)=[parseExpr e (n+1) (m+1)]
-                                    parseElemAssoc (ElemAssoc (ChoiceE e1) e2)=parseExpr (Dummy e1 e2) (n+1) (m+1)
-
-parseExpr (Dummy x y) n m=(Operator  (operatorId m) "??" [in1,in2] (SinglePort (newPortId (n+2))) () ,
-                        [Wire (Just "bool") (outOf (fst5 subOpX)) in1 ()
-                        ,Wire (Just "bool") (outOf (fst5 subOpY)) in2 ()] ++ (snd5 subOpX) ++ (snd5 subOpY),
-                        [fst5 subOpX,fst5 subOpY] ++ (trd5 subOpX) ++ (trd5 subOpY), getN subOpY, getM subOpY)
-                         where subOpX=parseExpr x (n+3) (m+1)
-                               subOpY=parseExpr y (getN subOpX) (getM subOpX)
-                               in1=newPortId n 
-                               in2=newPortId (n+1)
-
-
--}
-
--- gekopieerd ui parseDatastruc
-fst5 (q,_,_,_,_)=q
-snd5 (_,w,_,_,_)=w
-trd5 (_,_,e,_,_)=e
-
-getN (o,ws,ops,n,m)=n
-getM (o,ws,ops,n,m)=m
-
+parseUnairyExpr name x n m=
+    (Operator (operatorId m) name [in1] (SinglePort (newPortId (n+1))) () ,
+    [Wire (Just "num") (outOf (get1out5 subOpX)) in1 ()] ++ (get2out5 subOpX),
+    [get1out5 subOpX] ++ (get3out5 subOpX), get4out5 subOpX, get5out5 subOpX)
+  where
+    subOpX=parseExpr x (n+2) (m+1)
+    in1=newPortId n
 
 outOf::ArchElem a-> PortId
 outOf (Operator q w es r t)=extract (r)
-                            where extract (SinglePort x)=x
-outOf (Literal q v o a)=extract (o)
-                        where extract (SinglePort x)=x
-outOf (PortReference p)=extract (p)
-                        where extract (SinglePort x)=x
-                              extract (MultiPort x [y])= extract y  --dit werkt voor de huidige manier van selected names parsen
+  where 
+    extract (SinglePort x)=x
 
+outOf (Literal q v o a)=extract (o)
+  where 
+    extract (SinglePort x)=x
+    
+outOf (PortReference p)=extract (p)
+  where 
+    extract (SinglePort x)=x
+    extract (MultiPort x [y])= extract y  
+    --dit werkt voor de huidige manier van selected names parsen
 
 operatorId::Int -> String
 operatorId m= "operatorId" ++ show m
 
 newPortId m= "newPortId" ++ show m
 
-
 parseId::  VHDLId-> Id
 parseId s=fromVHDLId s
-

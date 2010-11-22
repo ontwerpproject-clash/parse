@@ -14,12 +14,14 @@ import Language.VHDL.AST hiding (Function)
 -- CLasH Imports
 import CLasH.Translator(getVHDL)
 
+import Helper
 import Datastruct
 import ParseTypes
 import ParseExpr hiding (parseVHDLName)
 
 type Types = [(VHDLId, PortId -> Port)]
 
+-----------------------------------------start main----------------------------------------------   
 main = do
   args <- getArgs
   vhdls <- getVHDL libdir args
@@ -72,40 +74,9 @@ parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)
     found = lookup t typeTable
     Just getPort = found
 
-
-
-
-
 -- VHDL.AST: LUArch ArchBody
 parseLUArch x = parseArchBody x
 
-
-
--- Hulp functies
--------------------------
-
-
---- oude troep??
-
-
-
-{-
-
-=======
-parseLUArch(x) = parseArchBody x
---TODO
--- parseLuPackageDec en parseLUPackageBody
-
-
---parseEntityDec::EntityDec-> Int-> Function
---parseEntityDec (EntityDec id isds) n=Function (parseId id) (Just (parseId id)) ins (turnIdsToOut outs n) ([],[]) ()
---                                     where isdsParsed=map parseEntityDec isds
---                                           ins=getIns isdsParsed
---                                           outs=getOuts isdsParsed
-
-
-
--}
 -----------------------------------------parseArchBody----------------------------------------------   
 parseArchBody :: ArchBody -> [ArchElem ()] -> ArchElem ()
 parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) fs
@@ -179,8 +150,8 @@ resolveAssociationNamed table ins outName x
     doorgaan=checkIsReference firstElem && ( not (isInSignal firstElem ins))
     followedUp=resolveAssociationNamed table ins outName firstElemStr
     followUp |isIn = ([],[])
-             |doorgaan =((fst followedUp) ++ (snd5 currRes) , (snd followedUp) ++ (trd5 currRes))
-             |otherwise=( (Wire (Just i) (getHighest(outportOf firstElem)) outName () ) : (snd5 currRes),(fst5 currRes : trd5 currRes))
+             |doorgaan =((fst followedUp) ++ (get2out5 currRes) , (snd followedUp) ++ (get3out5 currRes))
+             |otherwise=( (Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))
 
 
 isInSignal (PortReference (SinglePort x)) ins=elem x ins
@@ -189,15 +160,6 @@ isInSignal (PortReference (MultiPort _ _)) ins=undefined --kan nu nog niet voork
 checkIsReference:: ArchElem a -> Bool
 checkIsReference (PortReference z)=True
 checkIsReference _=False
-
-outportOf :: ArchElem a -> Port
-outportOf (Function _ _ _ p _ _) = p
-outportOf (Operator _ _ _ p _) = p
-outportOf (Literal _ _ p _) = p
-outportOf (Mux _ _ p _ _) = p
-outportOf (Register _ _ p _) = p
-outportOf (PortReference p) = p
-
 
 inSignalsOf:: ArchElem a -> [String]
 inSignalsOf (Function _ _ ins _ _ _)=parseToSingles ins
@@ -227,25 +189,13 @@ parseSignalDecsOf (BDISD s) =Just $ parseSigDec s
 parseSigDec :: SigDec -> String
 parseSigDec (SigDec id t Nothing) = parseId id
 parseSigDec x@(SigDec id t (Just expr))="het volgende kan nog niet geparsed worden: " ++ (show x)
-{-
-mapWpassedInts :: (a -> Int -> Int -> (b,c,d)) -> Int -> Int -> [a] -> [b]
-mapWpassedInts  _ _ _ [] = []
-mapWpassedInts  f n m (x:xs)=first3 res: (mapWpassedInts f newN newM xs)
-                             where res= f x n m
-                                   newN=second3 res
-                                   newM=third3 res
--}
-first3 (x,y,z)=x
-second3 (x,y,z)=y
-third3 (x,y,z)=z
 
 ----------------------------------------------------------------------------------------------------
-
 
 parseConcSm :: ConcSm -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
 parseConcSm  (CSBSm x) n m =undefined
 parseConcSm (CSSASm (s :<==: x)) n m
-  = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,snd5 $ last result,tail alleElementen,getN $ last result,getM $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
+  = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,get2out5 $ last result,tail alleElementen,get4out5 $ last result,get5out5 $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
     where
       result :: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
       result=parseConWforms x n m
@@ -254,55 +204,15 @@ parseConcSm  (CSISm x) n m =undefined
 parseConcSm  (CSPSm x) n m=undefined
 parseConcSm  (CSGSm x) n m=undefined
 
-{-
 
-
-parseConWforms ([] w Nothing) n m=parseWform w n m
-parseConWforms (_ _ _) n m=undefined
-
-parseWform (Unaffected) n m=undefined
-parseWform (Wform [w]) n m=parseWformElem w
-parseWform (Wform []) n m= error "Wform isn't supposed to have an empty list as argument."
-parseWform (Wform ws) n m=undefined
-
-
-parseWformElem (WformElem e Nothing) n m=(result,getN result,getM result) --later parseExpr aanpassen om het echte resultaat een subtuple te maken los van n en m...
-                                         where result=parseExpr e n m
-parseWformElem (WformElem _ (Just _)) n m=undefined
-   
-   
--- VHDL.AST: LUArch ArchBody
-parseLUArch(LUArch x) = parseArchBody x
-
---EntityDec VHDLId [IfaceSigDec]
---VHDLId kan over worden geslagen want deze wordt nergens voor gebruikt
---parseEntityDec EntityDec id is n m= parseIfaceSigDecs is n m
--}
-
-
---TODO
---parseBlockDecItem
-
---TODO
---parseBDISD
 --TODO ook nog BDISPB parsen
 parseConcSms [] n m = []
 parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
 
-{-
-parseConcSm(CSBSm c) n m = parseBlockSm c n m
-parseConcSm(CSSASm x) n m = parseConSigAssignSm x n m
-parseConcSm(CSISm c) n m = parseCompInsSm c n m
-parseConcSm(CSPSm c) n m = parseProcSm c n m
-parseConcSm(CSGSm c) n m = parseGenerateSm c n m
--}
 --TODO er moet ook nog iets met de VHDLName worden gedaan. Belangrijk voor de wires.
 parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
--- nog een soort van tweede iteratie die de x linkt aan de input van een andere operator
 
---ConWforms [WhenElse] Wform (Maybe When)
 --TODO programmeer WhenElse, wordt niet in het voorbeeld gebruikt.
---TODO wanneer het niet NOTHING is.
 parseConWforms (ConWforms _ f _) n m = parseWform f n m
 
 --TODO Wform kan ook worden aangeroepen met constructor Unaffected
@@ -310,15 +220,9 @@ parseWform (Wform f) n m = parseWformElems f n m
 
 parseWformElems [] n m = []
 parseWformElems (f:fs) n m = (parseWformElem f n m):(parseWformElems fs n m)
---parseWformElems [] n m = []
 
 --TODO de maybe kan ook voorkomen, maar niet in het voorbeeld
--- WformElem Expr (Maybe Expr)   
 parseWformElem (WformElem f Nothing) n m = parseExpr f n m
-
-
--- gekopieerd uit parseDatastruc.hs
-
 
 parseVHDLName (NSimple s)=parseSimpleName s
 parseVHDLName  (NSelected s)=parseSelectedName s
@@ -341,4 +245,3 @@ parseSuffix (All)=""
 parseIndexedName (IndexedName x es)=undefined
 parseSliceName s=undefined
 parseAttibName s=undefined
-
