@@ -1,0 +1,57 @@
+("accComponent_0",
+  DesignFile 
+    [Use (NSelected (NSimple "work" :.: SSimple "types") :.: All)
+    ,Use (NSimple "work" :.: All),Library "IEEE"
+    ,Use (NSelected (NSimple "IEEE" :.: SSimple "std_logic_1164") :.: All)
+    ,Use (NSelected (NSimple "IEEE" :.:SSimple "numeric_std") :.: All)
+    ,Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)
+    ] 
+
+    [LUEntity 
+      (EntityDec "accComponent_0" 
+        [IfaceSigDec "xzc8a3" In "signed_8"
+        ,IfaceSigDec "reszc8kzc8k3" Out "signed_8"
+        ,IfaceSigDec "clock" In "std_logic"
+        ,IfaceSigDec "resetn" In "std_logic"
+        ]
+      )
+      ,LUArch 
+        (ArchBody "structural" (NSimple "accComponent_0") 
+          [BDISD (SigDec "uzc8g3" "signed_8" Nothing)
+          ,BDISD (SigDec "accStatezc8e3" "signed_8" Nothing)
+          ] 
+
+          [CSSASm (NSimple "reszc8kzc8k3" :<==: ConWforms [] (Wform [WformElem (PrimName (NSimple "uzc8g3")) Nothing]) Nothing)
+          ,CSSASm(NSimple "uzc8g3" :<==: ConWforms [] (Wform [WformElem (PrimName (NSimple "accStatezc8e3") :+: PrimName (NSimple "xzc8a3")) Nothing]) Nothing)
+          ,CSBSm (BlockSm "state" [] (PMapAspect []) 
+            [BDISD (SigDec "initAccumval" "signed_8" Nothing)] 
+            [CSISm 
+              (CompInsSm "resetval_initAccumraum4" 
+                (IUEntity (NSimple "initAccumComponent_1")) 
+                (PMapAspect 
+                  [Just "reszc8Szc8S2" :=>: ADExpr (PrimName (NSimple "initAccumval"))
+                  ,Just "clock" :=>: ADExpr (PrimName (NSimple "clock"))
+                  ,Just "resetn" :=>: ADExpr (PrimName (NSimple "resetn"))]
+                )
+              )
+            ,CSPSm 
+              (ProcSm "stateupdate" 
+                ["clock","resetn","initAccumval"] 
+                [IfSm 
+                  (PrimName (NSimple "resetn") :=: PrimLit "'0'") 
+                  [SigAssign (NSimple "accStatezc8e3") (Wform [WformElem (PrimName (NSimple "initAccumval")) Nothing])]
+                  [ElseIf 
+                    (PrimFCall 
+                      (FCall (NSimple "rising_edge") 
+                        [Nothing :=>:ADName (NSimple "clock")]
+                      )
+                    ) 
+                    [SigAssign (NSimple "accStatezc8e3") (Wform [WformElem (PrimName (NSimple "uzc8g3")) Nothing])]]
+                  Nothing
+                ]
+              )
+            ])
+          ]
+        )
+    ]
+)

@@ -1,0 +1,18 @@
+macc :: ArchElem ()
+macc = Function "macc" (Just "macc")
+        [(Normal "inX"), (Normal "inY")] -- inputs
+        (Normal "outS'")                               -- output
+         ([   -- implementatie
+          Operator "*_0" "*" ["inX","inY"] (Normal "*_res") (),
+          Operator "+_0" "+" ["plusInA", "plusInB"] (Normal "s'") (),
+          Register "Reg0" (Just "regIn") (Normal "s") ()
+         ],
+         [Wire Nothing "?" "inX" (),
+          Wire Nothing "?" "inY" (),
+          Wire Nothing "s'" "outS" (),
+          Wire Nothing "*_res" "plusInB" (),
+          Wire Nothing "s" "plusInA" (),
+          Wire Nothing "s'" "regIn" (),
+          Wire Nothing "s'" "outS" ()
+           ])
+           ()

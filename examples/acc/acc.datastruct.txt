@@ -1,0 +1,17 @@
+Function 
+  "accComponent_0" 
+  Nothing 
+  [(SinglePort "in")]
+  (SinglePort "out")
+  (
+    [
+      Operator "operatorId0" "+" ["newPortId0", "newPortId1"] (SinglePort "OpOut") ()
+      Register "reg1" (Just "regIn") (SinglePort "opOut") ()
+    ]
+    ,[
+       Wire (Just "wire1") "in" "newPortId0" ()
+      ,Wire (Just "wire2") "regOut" "newPortId1" ()
+      ,Wire (Just "wire3") "opOut" "regIn" ()
+      ,Wire (Just "wire4") "opOut" "out" ()
+    ]
+  )
