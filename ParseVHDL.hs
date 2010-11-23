@@ -94,10 +94,11 @@ addInternals _ _=error "can not add internals to an architecture element that is
 
 removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> ([Wire ()],[ArchElem ()])
 removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
-  | x `elem` ins = (fst niksVeranderd, a: snd niksVeranderd) --HACKED??
-  | otherwise = ((fst r) ++ ws, snd r)
+  | x `elem` ins = (fst niksVeranderd, snd niksVeranderd) --HACKED??
+  {-| otherwise = (union (fst r) (ws \\ [w]), snd r)   --dit hoeft niet? -}
+  | otherwise = (fst r , snd r)  --veranderd !!!!!!!!!!!!!!!!!!!!!!! -}
     where
-      r=  removeReferences ((ws {-\\ [w]-})  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
+      r=  removeReferences ((ws \\ [w])  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
       newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
       (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
       niksVeranderd=  removeReferences (ws,as) table ins
@@ -136,8 +137,8 @@ resolveAssociationNamed table ins outName x
     followedUp=resolveAssociationNamed table ins outName firstElemStr
     followUp |isIn = ([],[])
              |doorgaan =((fst followedUp) ++ (get2out5 currRes) , (snd followedUp) ++ (get3out5 currRes))
-             |otherwise=( (Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))
-
+             |otherwise=((Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))
+			 {-|otherwise=( (Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))-}
 
 isInSignal (PortReference (SinglePort x)) ins=elem x ins
 isInSignal (PortReference (MultiPort _ _)) ins=undefined --kan nu nog niet voorkomen in prototype..

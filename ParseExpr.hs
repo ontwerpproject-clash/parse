@@ -57,6 +57,17 @@ parseFName (NIndexed x)                = "kan nog niet geparsd worden" ++ show (
 parseFName (NSlice x)                  = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NAttribute x)              ="kan nog niet geparsd worden" ++ show (x)
 
+{-
+volgende versie?:
+newParseExpr :: [ConSigAssignSm] -> (Int, Int) -> Expr-> ((Int,Int),(Port ,[Wire ()],[ArchElem ()]))
+newparseExpr consSms ints (PrimName x)= 
+               parseFName x
+                   where 
+				         signalName=parseFName x
+						 currAssign=lookup consSms signalName
+ 
+-}
+
 parseExpr ::Expr-> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 
 parseExpr (PrimFCall x) n m = parseFCall x n m

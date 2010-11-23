@@ -1,0 +1,10 @@
+Function "plus1Component_0" Nothing [SinglePort "xzbHa3"] (SinglePort "reszbHizbHi3") 
+
+([Operator "operatorId0" "+" ["newPortId0","newPortId1"] (SinglePort "newPortId2") ()
+,Literal "litoperatorId1" "1" (SinglePort "newPortId3") ()]
+
+,
+
+[Wire (Just "pzbHe3") "newPortId2" "reszbHizbHi3" ()
+,Wire (Just "bool") "xzbHa3" "newPortId0" ()
+,Wire (Just "argzbHozbHo3") "newPortId3" "newPortId1" ()]) ()
