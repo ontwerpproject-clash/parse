@@ -1,0 +1,22 @@
+Function 
+  "plus1Component_0" 
+  Nothing
+  [SinglePort "xzbRh3"] 
+  (SinglePort "reszbRpzbRp3")
+  (
+    [ 
+       Operator "operatorId0" "+" ["newPortId0","newPortId1"] (SinglePort "newPortId2") ()
+      ,PortReference (SinglePort "xzbRh3")                            <- niet goed
+      ,Literal "litoperatorId1" "1" (SinglePort "newPortId3") ()
+    ]
+    ,[
+       Wire (Just "pzbRl3") "newPortId2" "reszbRpzbRp3" ()            <- goed
+      ,Wire (Just "bool") "xzbRh3" "newPortId0" ()                    <- goed
+      ,Wire (Just "bool") "argzbRvzbRv3" "newPortId1" ()              <- niet goed
+      ,Wire (Just "argzbRvzbRv3") "newPortId3" "newPortId1" ()        <- goed
+      ,Wire (Just "pzbRl3") "newPortId2" "reszbRpzbRp3" ()            <- dubbel
+      ,Wire (Just "bool") "xzbRh3" "newPortId0" ()                    <- dubbel
+      ,Wire (Just "bool") "argzbRvzbRv3" "newPortId1" ()              <- Dubbel
+    ]
+  ) 
+  ()
