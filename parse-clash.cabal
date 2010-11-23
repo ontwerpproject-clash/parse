@@ -1,0 +1,11 @@
+Name: parse-clash
+Version: 0.0.1
+package-url: http://github.com/ontwerpproject-clash/parse
+Category: Hardware
+Build-Type: Simple
+Cabal-Version: >= 1.2
+
+Library
+  build-depends: clash == 0.1.1.1.9999, vhdl, base >= 4, ghc-paths
+  exposed-modules: ParseClash
+  other-modules: Datastruct, Helper, ParseExpr, ParseTypes, ParseVHDL

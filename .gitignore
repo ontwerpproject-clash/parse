@@ -1,5 +1,11 @@
+#wildcards
 *.o
 *.hi
 *.exe
+
+# executables
 getVhdlAst
 testparsing
+
+# cabal build dir
+dist/
