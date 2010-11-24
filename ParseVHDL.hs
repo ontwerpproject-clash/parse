@@ -195,11 +195,15 @@ parseConcSm  (CSGSm x) n m=undefined
 parseConcSms [] n m = []
 parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
 
+--Deze kan verwijderd worden.
 --TODO er moet ook nog iets met de VHDLName worden gedaan. Belangrijk voor de wires.
-parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
+--parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
 
---TODO programmeer WhenElse, wordt niet in het voorbeeld gebruikt.
-parseConWforms (ConWforms _ f _) n m = parseWform f n m
+parseConWforms (ConWforms [] f Nothing) n m = parseWform f n m
+--TODO programmeer WhenElse en maak er een mux van.. x=[WhenElse Wform Expr]
+parseConWforms (ConWforms x f Nothing) n m = parseWform f n m 
+
+
 
 --TODO Wform kan ook worden aangeroepen met constructor Unaffected
 parseWform (Wform f) n m = parseWformElems f n m

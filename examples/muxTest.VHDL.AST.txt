@@ -1,0 +1,56 @@
+("plus1Component_0",DesignFile 
+[Use (NSelected (NSimple "work" :.: SSimple "types") :.: All)
+,Use (NSimple "work" :.: All),Library "IEEE",Use (NSelected (NSimple "IEEE" :.: SSimple "std_logic_1164") :.: All)
+,Use (NSelected (NSimple "IEEE" :.: SSimple "numeric_std") :.: All)
+,Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)] 
+
+[LUEntity (EntityDec "plus1Component_0" 
+[IfaceSigDec "xzbHu3" In "signed_8"
+,IfaceSigDec "reszbHLzbHL2" Out "signed_8",IfaceSigDec "clock" In "std_logic"
+,IfaceSigDec "resetn" In "std_logic"
+])
+
+
+,LUArch (ArchBody "structural" (NSimple "plus1Component_0") 
+[BDISD (SigDec "casevalzbHRzbHR2" "signed_8" Nothing)
+,BDISD (SigDec "argzbHWzbHW2" "signed_8" Nothing)
+,BDISD (SigDec "casevalzbHPzbHP2" "signed_8" Nothing)
+,BDISD (SigDec "scrutzbHNzbHN2" "boolean" Nothing)
+,BDISD (SigDec "argzbHUzbHU2" "signed_8" Nothing)
+,BDISD (SigDec "pzbHy3" "signed_8" Nothing)
+,BDISD (SigDec "argzbHZzbHZ2" "signed_8" Nothing)] 
+
+[CSSASm (NSimple "reszbHLzbHL2" 
+     :<==:         --[whenElse 10 Nothing,(x=0)=True] Wform Nothing  (met wform gelijk aan x+1)
+     ConWforms [WhenElse (Wform [WformElem (PrimName (NSimple "casevalzbHRzbHR2")) Nothing])
+             (PrimName (NSimple "scrutzbHNzbHN2") :=: PrimLit "true")] 
+           (Wform [WformElem (PrimName (NSimple "casevalzbHPzbHP2")) Nothing]) Nothing)
+
+,CSSASm (NSimple "casevalzbHRzbHR2"
+    :<==: 
+    ConWforms [] (Wform [WformElem (PrimName (NSimple "argzbHWzbHW2")) Nothing]) Nothing)
+
+,CSSASm (NSimple "argzbHWzbHW2" 
+   :<==: 
+   ConWforms [] (Wform [WformElem (PrimFCall (FCall (NSimple "to_signed") 
+                   [Nothing :=>: ADExpr (PrimLit "10"),Nothing :=>: ADExpr (PrimLit "8")])) Nothing]) Nothing),
+
+CSSASm (NSimple "casevalzbHPzbHP2" 
+   :<==:
+    ConWforms [] (Wform [WformElem (PrimName (NSimple "pzbHy3")) Nothing]) Nothing)
+
+,CSSASm (NSimple "scrutzbHNzbHN2"  
+   :<==: 
+   ConWforms [] (Wform [WformElem (PrimName (NSimple "xzbHu3") :=: PrimName (NSimple "argzbHUzbHU2")) Nothing]) Nothing)
+
+,CSSASm (NSimple "argzbHUzbHU2" 
+   :<==: 
+   ConWforms [] (Wform [WformElem (PrimFCall (FCall (NSimple "to_signed") 
+           [Nothing :=>: ADExpr (PrimLit "0"),Nothing :=>: ADExpr (PrimLit "8")])) Nothing]) Nothing),
+
+CSSASm (NSimple "pzbHy3" 
+   :<==: 
+   ConWforms [] (Wform [WformElem (PrimName (NSimple"xzbHu3") :+: PrimName (NSimple "argzbHZzbHZ2")) Nothing]) Nothing)
+
+,CSSASm (NSimple "argzbHZzbHZ2" :<==: ConWforms [] (Wform [WformElem (PrimFCall (FCall (NSimple "to_signed") 
+             [Nothing :=>: ADExpr (PrimLit "1"),Nothing :=>: ADExpr (PrimLit"8")])) Nothing]) Nothing)])])
