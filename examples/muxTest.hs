@@ -1,16 +1,18 @@
+
+
 {-# LANGUAGE TemplateHaskell , TypeOperators, RecordWildCards,
 ScopedTypeVariables, TypeFamilies #-}
-module Plus1 where
+module MuxTest where
 import CLasH.HardwareTypes
 import CLasH.Translator.Annotations
 --type Word = SizedInt D8
 type Word = Signed D8
 
-{-# ANN plus1 TopEntity #-}
-plus1 :: Word -> State Word -> (State Word , Word)
-plus1 x state |x==0     = (state, 10)
-              |otherwise= (state, p)
-                         where p = x+1
+{-# ANN muxTest TopEntity #-}
+muxTest :: Word -> State Word -> (State Word , Word)
+muxTest x state |x==0     = (state, 10)
+                |otherwise= (state, p)
+                           where p = x+1
 
 
 {- # ANN program TestInput #-}
@@ -24,4 +26,5 @@ simulate' arch state (i : input) = o : out
   where
     (state' , o) = arch i state
     out = simulate' arch state' input
+
 
