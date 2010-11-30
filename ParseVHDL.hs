@@ -201,7 +201,48 @@ parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
 
 parseConWforms (ConWforms [] f Nothing) n m = parseWform f n m
 --TODO programmeer WhenElse en maak er een mux van.. x=[WhenElse Wform Expr]
-parseConWforms (ConWforms x f Nothing) n m = parseWform f n m 
+parseConWforms (ConWforms x f Nothing) n m
+   = parseWform f n m
+     where parsedWhenElses= parseWhenElses x (n+1) (m+1)
+           otherwiseUitgang=parseWform f newN newM
+           newN=fst (fst parsedWhenElses)
+           newM=snd (fst parsedWhenElses)
+           (ins,selects)=unzip (snd parsedWhenElses) --selects moet nog gekoppeld worden
+
+           currMux=Mux (operatorId m) inportNames (SinglePort (newPortId n)) (newPortId (n+1)) ()
+           inportNames=[newPortId number |number<- [1..totalIns]]
+           totalIns=(length x+1)
+
+           tempResult=connect (last ins) currMux --select ingang moet nog gekoppeld worden
+
+--verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
+connect:: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)] -> ArchElem () -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
+connect xs (m@(Mux _ inportNames _ _ _))
+     =(m,allWires,allElems,finalN,finalM)
+       where
+        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) inportNames)
+        allElems=(map get1out5 xs) ++ concat (map get3out5 xs)
+        allWires=newWires ++ concat (map get2out5 xs)
+        finalN= get4out5 (last xs)
+        finalM= get5out5 (last xs)
+        makeNewWire (x,i)=Wire (Just "a mux wire") x i ()
+
+
+parseWhenElses::  [WhenElse] -> Int -> Int -> ((Int,Int),
+                                              [([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
+                                              ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))])
+parseWhenElses xs n m =mapAccumL parseWhenElse (n,m) xs
+
+parseWhenElse::  (Int,Int) -> WhenElse -> ((Int,Int),
+                                         ([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
+                                         ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)))
+parseWhenElse (n,m) (WhenElse wform expr)
+   =( nm2tuple,(resultWform,resultGaurd))
+     where resultWform=parseWform wform n m
+           resultGaurd=parseExpr expr (get4out5 (last resultWform)) (get5out5 (last resultWform)) --volgens mij is resultWform altijd maar 1 element
+           nm2tuple=(get4out5 resultGaurd, get5out5 resultGaurd)
+
+
 
 
 
