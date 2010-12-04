@@ -1,0 +1,19 @@
+Function "plus1Component_0" Nothing [SinglePort "xzbHu3"] (SinglePort "reszbHLzbHL2") 
+(
+
+[Mux "operatorId0" ["newPortId1","newPortId2"] (SinglePort "newPortId0") ["newPortId3"] ()
+,Literal "litoperatorId3" "10" (SinglePort "newPortId8") ()
+,Operator "operatorId6" "+" ["newPortId13","newPortId14"] (SinglePort "newPortId15") ()
+,Literal "litoperatorId7" "2" (SinglePort "newPortId16") ()
+]
+
+,
+
+[Wire (Just "reszbHLzbHL2") "newPortId0" "reszbHLzbHL2" ()
+,Wire (Just "argzbHWzbHW2") "newPortId8" "newPortId1" ()
+,Wire (Just "pzbHy3") "newPortId15" "newPortId2" ()
+,Wire (Just "bool") "xzbHu3" "newPortId13" ()
+,Wire (Just "argzbHZzbHZ2") "newPortId16" "newPortId14" ()
+]
+
+) ()

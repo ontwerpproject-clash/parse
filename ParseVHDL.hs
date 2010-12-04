@@ -1,3 +1,4 @@
+
 module ParseVHDL where
 
 import Data.Maybe (isNothing,catMaybes)
@@ -200,32 +201,31 @@ parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
 --parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
 
 parseConWforms (ConWforms [] f Nothing) n m = parseWform f n m
---TODO programmeer WhenElse en maak er een mux van.. x=[WhenElse Wform Expr]
 parseConWforms (ConWforms x f Nothing) n m
-   = parseWform f n m
-     where parsedWhenElses= parseWhenElses x (n+1) (m+1)
+   |length selects /= 0  = [tempResult]
+   |otherwise           = error  "geen whenElses, dat klopt niet?"
+     where
+           currMux=Mux (operatorId m) inportNames (SinglePort (newPortId n)) selectNames ()
+           inportNames=[newPortId (number+n) |number<- [1..totalIns]]
+           totalIns=(length x+1)
+           secondN=n+totalIns
+           totalSelects=length x
+           selectNames=[newPortId (number+secondN) |number<- [1..totalSelects]]
+           thirdN=secondN+totalSelects+1
+
+           parsedWhenElses= parseWhenElses x thirdN (m+1)
            otherwiseUitgang=parseWform f newN newM
            newN=fst (fst parsedWhenElses)
            newM=snd (fst parsedWhenElses)
            (ins,selects)=unzip (snd parsedWhenElses) --selects moet nog gekoppeld worden
 
-           currMux=Mux (operatorId m) inportNames (SinglePort (newPortId n)) (newPortId (n+1)) ()
-           inportNames=[newPortId number |number<- [1..totalIns]]
-           totalIns=(length x+1)
 
-           tempResult=connect (last ins) currMux --select ingang moet nog gekoppeld worden
+           tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select ingang moet nog gekoppeld worden, is last hier zo goed?
+           trueResult=connectSelects selects tempResult "a select mux wire"
 
---verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
-connect:: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)] -> ArchElem () -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-connect xs (m@(Mux _ inportNames _ _ _))
-     =(m,allWires,allElems,finalN,finalM)
-       where
-        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) inportNames)
-        allElems=(map get1out5 xs) ++ concat (map get3out5 xs)
-        allWires=newWires ++ concat (map get2out5 xs)
-        finalN= get4out5 (last xs)
-        finalM= get5out5 (last xs)
-        makeNewWire (x,i)=Wire (Just "a mux wire") x i ()
+
+
+
 
 
 parseWhenElses::  [WhenElse] -> Int -> Int -> ((Int,Int),
@@ -243,6 +243,30 @@ parseWhenElse (n,m) (WhenElse wform expr)
            nm2tuple=(get4out5 resultGaurd, get5out5 resultGaurd)
 
 
+--verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
+connect:: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)] -> ArchElem () -> String -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
+connect xs (m@(Mux _ inportNames _ _ _)) name
+     =(m,allWires,allElems,finalN,finalM)
+       where
+        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) inportNames)
+        allElems=(map get1out5 xs) ++ concat (map get3out5 xs)
+        allWires=newWires ++ concat (map get2out5 xs)
+        finalN= get4out5 (last xs)
+        finalM= get5out5 (last xs)
+        makeNewWire (x,i)=Wire (Just name) x i ()
+
+
+
+--lijkst heel sterk op connect, misschien 1 algemenere functie maken die beide afhandeld?
+connectSelects xs ((mux@(Mux _ _ _ selectNames _)),wires,elems,n,m) name
+     =(mux,allWires,allElems,finalN,finalM)
+       where
+        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) selectNames)
+        allElems=(map get1out5 xs) ++ concat (map get3out5 xs) ++ elems
+        allWires=newWires ++ concat (map get2out5 xs) ++ wires
+        finalN= get4out5 (last xs)
+        finalM= get5out5 (last xs)
+        makeNewWire (x,i)=Wire (Just name) x i ()
 
 
 

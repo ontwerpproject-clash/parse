@@ -19,12 +19,11 @@ muxTest x state |x==0     = (state, 10)
 program :: [Word]
 program =
   [1,3,7]
-  
+
 
 simulate' _ _ [] = []
 simulate' arch state (i : input) = o : out
   where
     (state' , o) = arch i state
     out = simulate' arch state' input
-
 
