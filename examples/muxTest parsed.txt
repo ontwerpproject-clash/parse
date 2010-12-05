@@ -1,19 +1,26 @@
-Function "plus1Component_0" Nothing [SinglePort "xzbHu3"] (SinglePort "reszbHLzbHL2") 
-(
+Function "muxTestComponent_0" Nothing [SinglePort "xzbUx3"] (SinglePort "reszbUOzbUO2") 
 
+(
 [Mux "operatorId0" ["newPortId1","newPortId2"] (SinglePort "newPortId0") ["newPortId3"] ()
+,Operator "operatorId1" "=" ["newPortId4","newPortId5"] (SinglePort "newPortId6") ()
+,Operator "operatorId4" "=" ["newPortId9","newPortId10"](SinglePort "newPortId11") ()
+,Literal "litoperatorId5" "0" (SinglePort "newPortId12") ()
+,Literal "litoperatorId2" "true" (SinglePort "newPortId7") ()
 ,Literal "litoperatorId3" "10" (SinglePort "newPortId8") ()
 ,Operator "operatorId6" "+" ["newPortId13","newPortId14"] (SinglePort "newPortId15") ()
-,Literal "litoperatorId7" "2" (SinglePort "newPortId16") ()
+,Literal "litoperatorId7" "1" (SinglePort "newPortId16") ()
 ]
 
 ,
-
-[Wire (Just "reszbHLzbHL2") "newPortId0" "reszbHLzbHL2" ()
-,Wire (Just "argzbHWzbHW2") "newPortId8" "newPortId1" ()
-,Wire (Just "pzbHy3") "newPortId15" "newPortId2" ()
-,Wire (Just "bool") "xzbHu3" "newPortId13" ()
-,Wire (Just "argzbHZzbHZ2") "newPortId16" "newPortId14" ()
-]
-
-) ()
+[
+Wire (Just "reszbUOzbUO2") "newPortId0" "reszbUOzbUO2" ()
+,Wire (Just "a select mux wire") "newPortId6" "newPortId3" ()
+,Wire (Just "bool") "newPortId7" "newPortId5" ()
+,Wire (Just "scrutzbUQzbUQ2") "newPortId11" "newPortId4" ()
+,Wire (Just "bool") "xzbUx3" "newPortId9" ()
+,Wire (Just "argzbUXzbUX2") "newPortId12" "newPortId10" ()
+,Wire (Just "argzbUZzbUZ2") "newPortId8" "newPortId1" ()
+,Wire (Just "pzbUB2") "newPortId15" "newPortId2" ()
+,Wire (Just "bool") "xzbUx3" "newPortId13" (),
+Wire (Just "argzbV2zbV22") "newPortId16" "newPortId14" ()
+]) ()

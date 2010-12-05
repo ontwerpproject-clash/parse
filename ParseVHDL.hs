@@ -202,7 +202,7 @@ parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
 
 parseConWforms (ConWforms [] f Nothing) n m = parseWform f n m
 parseConWforms (ConWforms x f Nothing) n m
-   |length selects /= 0  = [tempResult]
+   |length selects /= 0  = [trueResult]
    |otherwise           = error  "geen whenElses, dat klopt niet?"
      where
            currMux=Mux (operatorId m) inportNames (SinglePort (newPortId n)) selectNames ()
