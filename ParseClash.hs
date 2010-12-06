@@ -1,6 +1,6 @@
 -- | This module is an external interface to Clash and our parsing of its output.
 --   If you want to use our code you should only have to import this module and nothing else.
-module ParseClash(parseClashFile,parseClashFiles, ArchElem(..),Wire(..),Port(..)) where
+module ParseClash(parseClashFile,parseClashFiles, ArchElem(..),Wire(..),Port(..),Name,Id,In,Out,InPort,OutPort) where
 
 -- local imports
 import Datastruct
