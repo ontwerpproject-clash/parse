@@ -20,7 +20,7 @@ parseVhdlAsts vhdls
   = parseTopEntity topentity types
   where
     typesAst = head vhdls
-    topentity = vhdls !! 1
+    topentity = vhdls !! 1 --TODO: parse de overige enteties
     types = parseTypes typesAst
 
 parseTopEntity :: (VHDLId, DesignFile) -> Types -> ArchElem ()
@@ -36,32 +36,23 @@ parseEntity ((LUEntity e):ls) types = parseEntityDec e ls types
 parseEntityDec (EntityDec id sigs) ls types = result
   where
     legefunctie     = Function (parseId id) Nothing ins out ([],[]) ()
-    (LUArch archbody):_ = filter isLUArch ls
-    result = parseArchBody archbody [legefunctie]
+    (LUArch archbody):_ = filter isLUArch ls  --TODO: doe iets met de overige archbody's als die bestaan
+    result = parseArchBody archbody [legefunctie] --voeg hier types toe zodat deze gebruikt kan worden bij het maken van de multiports
     parsedSigs = filter (\(IfaceSigDec id _ _) -> fromVHDLId id `notElem` ["clock","resetn"]) sigs
     ports = map (parseIfaceSigDec types) parsedSigs
-    ins = map (\(p,_) -> p) $ filter snd ports
-    out = head $ map (\(p,_) -> p) $ filter (not . snd) ports
+    ins = map fst $ filter snd ports
+    out = head $ map fst $ filter (not . snd) ports
     isLUArch (LUArch _) = True
     isLuArch _ = False
 
-
 parseIfaceSigDec :: Types -> IfaceSigDec -> (Port,Bool)
-parseIfaceSigDec typeTable (IfaceSigDec sigId In t)
+parseIfaceSigDec typeTable (IfaceSigDec sigId direction t)
   | isNothing found = error $ "Could not find type:" ++ show t
-  | otherwise = (getPort (parseId sigId),True)
+  | otherwise = (getPort (parseId sigId),isIn)
   where
     found = lookup t typeTable
     Just getPort = found
-parseIfaceSigDec typeTable (IfaceSigDec sigId Out t)
-  | isNothing found = error $ "Could not find type:" ++ show t
-  | otherwise = (getPort (parseId sigId),False)
-  where
-    found = lookup t typeTable
-    Just getPort = found
-
--- VHDL.AST: LUArch ArchBody
-parseLUArch x = parseArchBody x
+	isIn = direction==In 
 
 -----------------------------------------parseArchBody----------------------------------------------
 parseArchBody :: ArchBody -> [ArchElem ()] -> ArchElem ()
