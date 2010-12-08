@@ -52,7 +52,7 @@ parseIfaceSigDec typeTable (IfaceSigDec sigId direction t)
   where
     found = lookup t typeTable
     Just getPort = found
-	isIn = direction==In 
+    isIn = (direction==In )
 
 -----------------------------------------parseArchBody----------------------------------------------
 parseArchBody :: ArchBody -> [ArchElem ()] -> ArchElem ()
