@@ -36,7 +36,7 @@ data ArchElem a =
     Mux Id
        [In] -- ^ List of inports from which the outport is selected
         Out -- ^ The outport
-        SelectInPort  -- ^ Inport signal to choise an from the list inports
+       [In]  -- ^ Inport signal to choise an from the list inports
         a |
 
     Register
@@ -57,9 +57,6 @@ data Wire a =
         PortId        -- ^ Destination port
         a
     deriving (Show,Eq,Ord)
-
---wat gaat dit worden? Orgineel was dit In..
-type SelectInPort = [In] --als eerste selectingang true is zal eerste ingang gekozen worden, als tweede ,... als geen ingang true is wordt de laatste ingang gekozen.
 
 type Name = String
 type Value = String
