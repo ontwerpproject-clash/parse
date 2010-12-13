@@ -57,5 +57,5 @@ parseElementDec portId (ElementDec eId typemark)
   --TODO add support for tuples inside of tuples: (a,(b,c))
   = SinglePort $ makeNestedPortId portId eId
   where
-    makeNestedPortId pId eId = pId ++ '_' : fromVHDLId eId
+    makeNestedPortId pId eId = pId ++ '.' : fromVHDLId eId
 

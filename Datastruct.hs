@@ -20,33 +20,19 @@ data ArchElem a =
         ([ArchElem a],[Wire a]) -- ^ Functions have deeper architecture. These are specified by a tuple of a list of architectures and a list of wires, which connect the different architectures.
         a |
 
-    Operator
-        Id
-        OpType
-        [In]
-        Out
-        a |
+    Operator Id OpType [In] Out a |
 
-    Literal
-        Id
-        Value
-        Out
-        a |
+    Literal Id Value Out a |
 
     Mux Id
        [In] -- ^ List of inports from which the outport is selected
         Out -- ^ The outport
-       [In]  -- ^ Inport signal to choise an from the list inports
-        a |
+       [In]  -- ^ Inport signal to choice an from the list inports
+       a |
 
-    Register
-        Id
-        (Maybe In)
-        Out
-        a |
+    Register Id (Maybe In) Out a |
 
-    PortReference
-        Port
+    PortReference Port
 
     deriving (Show,Eq,Ord)
 
@@ -65,7 +51,7 @@ type OpType = String
 type PortId = String
 type Id = String
 
-type In = PortId
+type In = Port
 type Out = Port
 
 type InPort = Port

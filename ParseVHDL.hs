@@ -10,7 +10,7 @@ import Language.VHDL.AST hiding (Function)
 import Helper
 import Datastruct
 import ParseTypes
-import ParseExpr hiding (parseVHDLName)
+import ParseExpr
 
 type Types = [(VHDLId, PortId -> Port)]
 
@@ -37,13 +37,14 @@ parseEntityDec (EntityDec id sigs) ls types = result
   where
     legefunctie     = Function (parseId id) Nothing ins out ([],[]) ()
     (LUArch archbody):_ = filter isLUArch ls  --TODO: doe iets met de overige archbody's als die bestaan
-    result = parseArchBody archbody [legefunctie] --voeg hier types toe zodat deze gebruikt kan worden bij het maken van de multiports
+    result = parseArchBody archbody types portTable [legefunctie]  -- types toegevoegd zodat deze gebruikt kan worden bij het maken van de multiports
     parsedSigs = filter (\(IfaceSigDec id _ _) -> fromVHDLId id `notElem` ["clock","resetn"]) sigs
     ports = map (parseIfaceSigDec types) parsedSigs
     ins = map fst $ filter snd ports
     out = head $ map fst $ filter (not . snd) ports
     isLUArch (LUArch _) = True
     isLuArch _ = False
+    portTable = map (parseIfaceSigDec2 types) parsedSigs
 
 parseIfaceSigDec :: Types -> IfaceSigDec -> (Port,Bool)
 parseIfaceSigDec typeTable (IfaceSigDec sigId direction t)
@@ -53,19 +54,26 @@ parseIfaceSigDec typeTable (IfaceSigDec sigId direction t)
     found = lookup t typeTable
     Just getPort = found
     isIn = (direction==In )
+	
+parseIfaceSigDec2 typeTable (IfaceSigDec id _ t) 
+   | isNothing found = error $ "Could not find type:" ++ show t
+   | otherwise = ((parseId id), getPort (parseId id))
+   where
+     found = lookup t typeTable
+     Just getPort = found
 
 -----------------------------------------parseArchBody----------------------------------------------
-parseArchBody :: ArchBody -> [ArchElem ()] -> ArchElem ()
-parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) fs
+parseArchBody :: ArchBody -> Types -> [(String,Port)] -> [ArchElem ()] -> ArchElem ()
+parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) types portTable fs
    =newElem -- : (delete currentArchElem fs)
     where
-      parsedBs=catMaybes $ map parseSignalDecsOf bs
+      pTable=portTable ++ catMaybes (map (parseSignalDecsOf types) bs) --tabel met poorten bijbehorend aan de signalen.
       -- parsedCs=mapWpassedInts parseConcSm 0 0 cs --mapWpassedInts is soortgelijk aan mapAccumL. Dit later dus met mapAccumL doen.
       (_,parsedCs)=mapAccumL (myParseConcSm) (0,0) cs
       myParseConcSm :: (Int,Int) -> ConcSm -> ((Int,Int), (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)))
       myParseConcSm (n,m) c = ((n',m'), result)
         where
-          result = parseConcSm c n m
+          result = parseConcSm c pTable n m
           (_,(_, _, _, n', m')) = result
       currentArchElem=searchFunction (parseId x) fs
       outsResolved  :: [([Wire ()],[ArchElem ()])]
@@ -75,9 +83,9 @@ parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) fs
       unzipped = unzip outsResolved
       internals=removeReferences concatted parsedCs (inSignalsOf currentArchElem)
       newElem= addInternals currentArchElem internals
-parseArchBody (ArchBody _ (NSimple x) bs cs ) fs=undefined
-parseArchBody (ArchBody (Basic "structural") _ bs cs ) fs=undefined
-parseArchBody (ArchBody _ _ bs cs ) fs=undefined
+parseArchBody (ArchBody _ (NSimple x) bs cs ) _ _ fs=undefined
+parseArchBody (ArchBody (Basic "structural") _ bs cs ) _ _ fs=undefined
+parseArchBody (ArchBody _ _ bs cs ) _ _ fs=undefined
 
 addInternals :: ArchElem a -> ([Wire a],[ArchElem a]) -> ArchElem a
 addInternals (Function q w e r _ a) (ws,as)=Function q w e r (as,ws) a
@@ -87,8 +95,7 @@ addInternals _ _=error "can not add internals to an architecture element that is
 removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))] -> [String] -> ([Wire ()],[ArchElem ()])
 removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
   | x `elem` ins = (fst niksVeranderd, snd niksVeranderd) --HACKED??
-  {-| otherwise = (union (fst r) (ws \\ [w]), snd r)   --dit hoeft niet? -}
-  | otherwise = (fst r , snd r)  --veranderd !!!!!!!!!!!!!!!!!!!!!!! -}
+  | otherwise = (fst r , snd r) 
     where
       r=  removeReferences ((ws \\ [w])  ++ (fst newReferences),(snd newReferences) ++ as ) table ins
       newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
@@ -130,7 +137,6 @@ resolveAssociationNamed table ins outName x
     followUp |isIn = ([],[])
              |doorgaan =((fst followedUp) ++ (get2out5 currRes) , (snd followedUp) ++ (get3out5 currRes))
              |otherwise=((Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))
-			 {-|otherwise=( (Wire (Just x) (getHighest(outportOf firstElem)) outName () ) : (get2out5 currRes),(get1out5 currRes : get3out5 currRes))-}
 
 isInSignal (PortReference (SinglePort x)) ins=elem x ins
 isInSignal (PortReference (MultiPort _ _)) ins=undefined --kan nu nog niet voorkomen in prototype..
@@ -144,10 +150,6 @@ inSignalsOf (Function _ _ ins _ _ _)=parseToSingles ins
 outSignalsOf:: ArchElem a -> [String]
 outSignalsOf (Function _ _ _ out _ _)=parseToSingles [out]
 
-getHighest::Port -> PortId
-getHighest (SinglePort x)=x
-getHighest (MultiPort x _)=x
-
 parseToSingles::[Port]-> [String]
 parseToSingles []=[]
 parseToSingles ((SinglePort x):xs) =x:parseToSingles xs
@@ -160,91 +162,75 @@ searchFunction s (f@(Function x _ _ _ _ _):fs)
 searchFunction s []=error $ "a functie with the name" ++ s ++ "was not found by the parser. We might have messed up, sorry for the inconvienience.."
 searchFunction s _=error  "the impossible happened" --De architectuurelementen in de invoer horen nl allemaal Funtions te zijn...
 
-parseSignalDecsOf :: BlockDecItem -> Maybe String
-parseSignalDecsOf (BDISPB s)=Nothing --wordt later ergens anders geparsed
-parseSignalDecsOf (BDISD s) =Just $ parseSigDec s
+parseSignalDecsOf :: Types -> BlockDecItem -> Maybe (String,Port)
+parseSignalDecsOf typeTable (BDISPB s)=Nothing --wordt later ergens anders geparsed
+parseSignalDecsOf typeTable (BDISD s) =Just $ parseSigDec typeTable s
 
-parseSigDec :: SigDec -> String
-parseSigDec (SigDec id t Nothing) = parseId id
-parseSigDec x@(SigDec id t (Just expr))="het volgende kan nog niet geparsed worden: " ++ (show x)
+parseSigDec :: Types -> SigDec -> (String,Port)
+parseSigDec typeTable (SigDec id t Nothing) 
+  | isNothing found = error $ "Could not find type:" ++ show t
+  | otherwise = ((parseId id), getPort (parseId id))
+  where
+    found = lookup t typeTable
+    Just getPort = found
+parseSigDec typeTable (x@(SigDec id t (Just expr)))=("het volgende kan nog niet geparsed worden: " ++ (show x),SinglePort "error")
+
+
 
 ----------------------------------------------------------------------------------------------------
 
-parseConcSm :: ConcSm -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
-parseConcSm  (CSBSm x) n m =undefined
-parseConcSm (CSSASm (s :<==: x)) n m
+parseConcSm :: ConcSm -> [(String,Port)] -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
+parseConcSm (CSBSm x) _ n m =undefined
+parseConcSm (CSSASm (s :<==: x)) portTable n m
   = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,get2out5 $ last result,tail alleElementen,get4out5 $ last result,get5out5 $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
     where
       result :: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
-      result=parseConWforms x n m
+      result=parseConWforms (parseVHDLName s) portTable x n m
       alleElementen = concat $ map (\(a,_,as,_,_) -> a:as) result
-parseConcSm  (CSISm x) n m =undefined
-parseConcSm  (CSPSm x) n m=undefined
-parseConcSm  (CSGSm x) n m=undefined
+parseConcSm (CSISm x) portTable n m =undefined
+parseConcSm (CSPSm x) portTable n m=undefined
+parseConcSm (CSGSm x) portTable n m=undefined
 
-
---TODO ook nog BDISPB parsen
-parseConcSms [] n m = []
-parseConcSms(c:cs) n m = (parseConcSm c n m):(parseConcSms cs n m)
-
---Deze kan verwijderd worden.
---TODO er moet ook nog iets met de VHDLName worden gedaan. Belangrijk voor de wires.
---parseConSigAssignSm(x :<==: y) n m = parseConWforms y n m
-
-parseConWforms (ConWforms [] f Nothing) n m = parseWform f n m
-parseConWforms (ConWforms x f Nothing) n m
+parseConWforms s portTable (ConWforms [] f Nothing) n m = parseWform s portTable f n m
+parseConWforms s portTable (ConWforms x f Nothing) n m --dit regeld het aanmaken van de muxes:
    |length selects /= 0  = [trueResult]
-   |otherwise           = error  "geen whenElses, dat klopt niet?"
+   |otherwise           = error  "no result from the parsed whenElses statements, please fix parseConWforms."
      where
-           currMux=Mux (operatorId m) inportNames (SinglePort (newPortId n)) selectNames ()
-           inportNames=[newPortId (number+n) |number<- [1..totalIns]]
+	       --a Mux without its in- and outgoing wires:
+           currMux=Mux (operatorId m) inportNames outPort selectNames ()
+           outPort= sureLookup s portTable
+           inportNames= [portLike (newPortId (number+n)) outPort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
            totalIns=(length x+1)
            secondN=n+totalIns
            totalSelects=length x
-           selectNames=[newPortId (number+secondN) |number<- [1..totalSelects]]
+           selectNames= [portLike (newPortId (number+secondN)) outPort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
            thirdN=secondN+totalSelects+1
 
-           parsedWhenElses= parseWhenElses x thirdN (m+1)
-           otherwiseUitgang=parseWform f newN newM
+		   -- Subcompoenents need to be parsed:
+           parsedWhenElses= parseWhenElses s portTable x thirdN (m+1)
+           otherwiseUitgang=parseWform s portTable f newN newM
            newN=fst (fst parsedWhenElses)
            newM=snd (fst parsedWhenElses)
-           (ins,selects)=unzip (snd parsedWhenElses) --selects moet nog gekoppeld worden
-
-
-           tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select ingang moet nog gekoppeld worden, is last hier zo goed?
+           (ins,selects)=unzip (snd parsedWhenElses) 
+		   
+		   --some wires between the subcomponent and the new mux need to be made:
+           tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
            trueResult=connectSelects selects tempResult "a select mux wire"
 
-
-
-
-
-
-parseWhenElses::  [WhenElse] -> Int -> Int -> ((Int,Int),
+parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> Int -> Int -> ((Int,Int),
                                               [([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
                                               ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))])
-parseWhenElses xs n m =mapAccumL parseWhenElse (n,m) xs
+parseWhenElses s portTable xs n m =mapAccumL (parseWhenElse s portTable) (n,m) xs
 
-parseWhenElse::  (Int,Int) -> WhenElse -> ((Int,Int),
+parseWhenElse:: String -> [(String,Port)] -> (Int,Int) -> WhenElse ->
+                                         ((Int,Int),
                                          ([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
                                          ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)))
-parseWhenElse (n,m) (WhenElse wform expr)
+parseWhenElse s portTable (n,m) (WhenElse wform expr)
    =( nm2tuple,(resultWform,resultGaurd))
-     where resultWform=parseWform wform n m
-           resultGaurd=parseExpr expr (get4out5 (last resultWform)) (get5out5 (last resultWform)) --volgens mij is resultWform altijd maar 1 element
+     where resultWform=parseWform s portTable wform n m
+           resultGaurd=parseExpr s portTable expr (get4out5 (last resultWform)) (get5out5 (last resultWform)) --volgens mij is resultWform altijd maar 1 element
            nm2tuple=(get4out5 resultGaurd, get5out5 resultGaurd)
-
-
---verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
-connect:: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)] -> ArchElem () -> String -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-connect xs (m@(Mux _ inportNames _ _ _)) name
-     =(m,allWires,allElems,finalN,finalM)
-       where
-        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) inportNames)
-        allElems=(map get1out5 xs) ++ concat (map get3out5 xs)
-        allWires=newWires ++ concat (map get2out5 xs)
-        finalN= get4out5 (last xs)
-        finalM= get5out5 (last xs)
-        makeNewWire (x,i)=Wire (Just name) x i ()
 
 
 
@@ -252,7 +238,7 @@ connect xs (m@(Mux _ inportNames _ _ _)) name
 connectSelects xs ((mux@(Mux _ _ _ selectNames _)),wires,elems,n,m) name
      =(mux,allWires,allElems,finalN,finalM)
        where
-        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) selectNames)
+        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) (map getHighest selectNames))
         allElems=(map get1out5 xs) ++ concat (map get3out5 xs) ++ elems
         allWires=newWires ++ concat (map get2out5 xs) ++ wires
         finalN= get4out5 (last xs)
@@ -262,13 +248,13 @@ connectSelects xs ((mux@(Mux _ _ _ selectNames _)),wires,elems,n,m) name
 
 
 --TODO Wform kan ook worden aangeroepen met constructor Unaffected
-parseWform (Wform f) n m = parseWformElems f n m
+parseWform s portTable (Wform f) n m = parseWformElems s portTable f n m
 
-parseWformElems [] n m = []
-parseWformElems (f:fs) n m = (parseWformElem f n m):(parseWformElems fs n m)
+parseWformElems s portTable [] n m = []
+parseWformElems s portTable (f:fs) n m = (parseWformElem s portTable f n m):(parseWformElems s portTable fs n m)
 
 --TODO de maybe kan ook voorkomen, maar niet in het voorbeeld
-parseWformElem (WformElem f Nothing) n m = parseExpr f n m
+parseWformElem s portTable (WformElem f Nothing) n m = parseExpr s portTable f n m
 
 parseVHDLName (NSimple s)=parseSimpleName s
 parseVHDLName  (NSelected s)=parseSelectedName s
@@ -280,7 +266,7 @@ parseSimpleName ::SimpleName-> Id
 parseSimpleName  s=parseId s
 
 parseSelectedName::SelectedName-> Id
-parseSelectedName (x :.: y)=(parsePrefix x) ++ (parseSuffix y)
+parseSelectedName (x :.: y)=(parsePrefix x) ++ "." ++ (parseSuffix y)
 
 parsePrefix x=parseVHDLName x
 
