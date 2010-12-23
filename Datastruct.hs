@@ -27,7 +27,7 @@ data ArchElem a =
     Mux Id
        [In] -- ^ List of inports from which the outport is selected
         Out -- ^ The outport
-       [In]  -- ^ Inport signal to choice an from the list inports
+       [In]  -- ^ select signal to choose a signal from the inports
        a |
 
     Register Id (Maybe In) Out a |

@@ -34,7 +34,7 @@ getHighest (MultiPort x _)=x
 
 --verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
 connect:: [(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)] -> ArchElem () -> String -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-connect xs (m@(Mux _ inportNames _ _ _)) name
+connect xs m name
      =(m,allWires,allElems,finalN,finalM)
        where
         newWires=map makeNewWire (zip fromOuts toIns)
@@ -64,3 +64,9 @@ fromdot :: String -> String
 fromdot []=[]
 fromdot (s@(('.'):sx))=s
 fromdot (x:xs)=fromdot xs
+
+untillDot :: String -> String
+--geeft alles tot de eerste punt van de string op; zoals naam vanuit naam.A.B
+untillDot []        =[]
+untillDot (('.'):sx)=[]
+untillDot (x:xs)    =x: (untillDot xs)
