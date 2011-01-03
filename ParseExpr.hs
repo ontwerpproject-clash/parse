@@ -80,6 +80,7 @@ parseExpr s portTable (x :<=: y) n m   =parseBinExpr s portTable "<=" x y n m
 parseExpr s portTable (x :>: y) n m   =parseBinExpr s portTable ">" x y n m
 parseExpr s portTable (x :>=: y) n m   =parseBinExpr s portTable ">=" x y n m
 parseExpr s portTable (x :+: y) n m   =parseBinExpr s portTable "+" x y n m
+parseExpr s portTable (x :-: y) n m   =parseBinExpr s portTable "-" x y n m
 
 parseExpr s portTable (Neg x) n m     =parseUnairyExpr s portTable "neg" x n m
 parseExpr s portTable (Pos x) n m     =parseUnairyExpr s portTable "pos" x n m
