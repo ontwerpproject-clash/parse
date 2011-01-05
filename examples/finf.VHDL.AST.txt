@@ -1,0 +1,87 @@
+("finfComponent_0",
+DesignFile  [Use (NSelected (NSimple "work" :.: SSimple "types") :.: All) 
+            ,Use (NSimple "work" :.: All),Library "IEEE"
+            ,Use (NSelected (NSimple"IEEE" :.: SSimple "std_logic_1164") :.: All)
+            ,Use (NSelected (NSimple "IEEE" :.: SSimple "numeric_std") :.: All)
+            ,Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)] 
+
+[LUEntity   (EntityDec "finfComponent_0" 
+              [IfaceSigDec "xzbEX2" In "signed_8"
+              ,IfaceSigDec "yzbEZ2" In "signed_8"
+              ,IfaceSigDec "reszbF9zbF92" Out "signed_8"
+              ,IfaceSigDec "clock" In "std_logic"
+              ,IfaceSigDec "resetn" In "std_logic"])
+
+,LUArch   (ArchBody "structural" 
+            (NSimple "finfComponent_0") [] 
+            [CSISm  (CompInsSm 
+                      "comp_ins_reszbF9zbF92" 
+                      (IUEntity (NSimple "telopComponent_1")) 
+                      (PMapAspect   [Just "xzbFb3" :=>: ADExpr (PrimName (NSimple "xzbEX2"))
+                                    ,Just "yzbFd3" :=>: ADExpr (PrimName (NSimple "yzbEZ2"))
+                                    ,Just "reszbFkzbFk3" :=>: ADExpr (PrimName (NSimple "reszbF9zbF92"))
+                                    ,Just "clock" :=>: ADExpr (PrimName (NSimple "clock"))
+                                    ,Just "resetn" :=>: ADExpr (PrimName (NSimple "resetn"))]
+                      )
+                    )
+            ]
+          )
+])
+
+
+
+("telopComponent_1",
+DesignFile  [Use (NSelected (NSimple "work" :.: SSimple "types") :.: All)
+            ,Use (NSimple "work" :.: All),Library "IEEE"
+            ,Use (NSelected (NSimple "IEEE" :.: SSimple "std_logic_1164") :.: All)
+            ,Use (NSelected (NSimple "IEEE" :.: SSimple "numeric_std") :.: All)
+            ,Use (NSelected (NSimple "std" :.: SSimple "textio") :.: All)]
+
+[LUEntity   (EntityDec "telopComponent_1" 
+              [IfaceSigDec "xzbFb3" In "signed_8"
+              ,IfaceSigDec "yzbFd3" In "signed_8"
+              ,IfaceSigDec "reszbFkzbFk3" Out "signed_8"
+              ,IfaceSigDec "clock" In "std_logic"
+              ,IfaceSigDec "resetn" In "std_logic"])
+
+,LUArch   (ArchBody "structural" 
+            (NSimple "telopComponent_1") 
+            [BDISD (SigDec "argzbFmzbFm3" "signed_8" Nothing)] 
+            [CSSASm (NSimple "reszbFkzbFk3" :<==: ConWforms [] (Wform [WformElem (PrimName (NSimple "argzbFmzbFm3")) Nothing]) Nothing)
+            ,CSSASm (NSimple "argzbFmzbFm3" :<==: ConWforms [] (Wform [WformElem (PrimName (NSimple "xzbFb3") :+: PrimName (NSimple "yzbFd3")) Nothing]) Nothing)]
+          )
+])
+
+
+
+--------------------------------- DATASTRUCT ----------------------------------------
+Function 
+  "finfComponent_0" 
+  Nothing
+  [SinglePort "xzbEX2", SinglePort "yzbEZ2"] 
+  (SinglePort "reszbF9zbF92")
+  (
+    [ 
+       Function
+       "telopComponent_1"
+       Nothing
+       [SinglePort "xzbFb3", SinglePort "yzbFd3"]
+       (SinglePort "reszbFkzbFk3")
+       (
+          [Operator "operatorId0" "+" [SinglePort "newPortId0", SinglePort "newPortId1"] (SinglePort "newPortId2") ()]
+          ,[
+             Wire Nothing "newPortId2" "reszbFkzbFk3" ()
+            ,Wire Nothing "xzbFb3" "newPortId0" ()
+            ,Wire Nothing "yzbFd3" "newPortId1" ()
+          ]
+       )
+       ()
+    ]
+    ,[
+       Wire Nothing "xzbEX2" "xzbFb3" ()
+      ,Wire Nothing "yzbEZ2" "yzbFd3" ()
+      ,Wire Nothing "reszbFkzbFk3" "reszbF9zbF92" ()
+     
+    ]
+  ) 
+  ()
