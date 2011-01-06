@@ -1,6 +1,8 @@
 #wildcards
 *.o
 *.hi
+*.o-boot
+*.hi-boot
 *.exe
 
 # executables

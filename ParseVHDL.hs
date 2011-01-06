@@ -11,6 +11,7 @@ import Helper
 import Datastruct
 import ParseTypes
 import ParseExpr
+import {-# SOURCE #-} ParseState
 
 type Types = [(VHDLId, PortId -> Port)]
 
@@ -249,7 +250,7 @@ parseSigDec typeTable (x@(SigDec id t (Just expr)))=("het volgende kan nog niet 
 ----------------------------------------------------------------------------------------------------
 
 parseConcSm :: ConcSm -> [(String,Port)] -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
-parseConcSm (CSBSm x) _ n m =undefined
+parseConcSm (CSBSm x) portTable n m = parseBlockSm x portTable n m
 parseConcSm (CSSASm (s :<==: x)) portTable n m
   = (PortReference $ SinglePort (parseVHDLName s),(head alleElementen,get2out5 $ last result,tail alleElementen,get4out5 $ last result,get5out5 $ last result)) --geeft een koppeling van het signaal s aan de uitkomst van de expressie in x terug
     where
@@ -347,3 +348,12 @@ parseSuffix (All)=""
 parseIndexedName (IndexedName x es)=undefined
 parseSliceName s=undefined
 parseAttibName s=undefined
+
+{-
+  A state (register)
+-}
+parseBlockSm :: BlockSm -> [(String,Port)] -> Int -> Int -> (ArchElem (),(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))
+parseBlockSm b@(BlockSm l _ _ _ _) portTable n m
+  | label == "state" = parseState b portTable n m
+  | otherwise = error $ "can't yet parse BlockSm with label " ++ label
+  where label = fromVHDLId l
