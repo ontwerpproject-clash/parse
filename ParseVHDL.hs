@@ -317,6 +317,14 @@ parseExpr s portTable (Xor x y)   =parseBinExpr s portTable "xor" x y
 parseExpr s portTable (Nand x y)  =parseBinExpr s portTable "nand" x y
 parseExpr s portTable (Nor x y)   =parseBinExpr s portTable "nor" x y
 parseExpr s portTable (Xnor x y)  =parseBinExpr s portTable "xnor" x y
+parseExpr s portTable (Mod x y)   =parseBinExpr s portTable "mod" x y
+parseExpr s portTable (Rem x y)   =parseBinExpr s portTable "rem" x y
+parseExpr s portTable (Sll x y)   =parseBinExpr s portTable "sll" x y
+parseExpr s portTable (Srl x y)   =parseBinExpr s portTable "srl" x y
+parseExpr s portTable (Sla x y)   =parseBinExpr s portTable "sla" x y
+parseExpr s portTable (Sra x y)   =parseBinExpr s portTable "sra" x y
+parseExpr s portTable (Rol x y)   =parseBinExpr s portTable "rol" x y
+parseExpr s portTable (Ror x y)   =parseBinExpr s portTable "ror" x y
 parseExpr s portTable (x :=: y)   =parseBinExpr s portTable "=" x y
 parseExpr s portTable (x :/=: y)  =parseBinExpr s portTable "/=" x y
 parseExpr s portTable (x :<: y)   =parseBinExpr s portTable "<" x y
@@ -324,13 +332,18 @@ parseExpr s portTable (x :<=: y)  =parseBinExpr s portTable "<=" x y
 parseExpr s portTable (x :>: y)   =parseBinExpr s portTable ">" x y
 parseExpr s portTable (x :>=: y)  =parseBinExpr s portTable ">=" x y
 parseExpr s portTable (x :+: y)   =parseBinExpr s portTable "+" x y
+parseExpr s portTable (x :-: y)   =parseBinExpr s portTable "-" x y
+parseExpr s portTable (x :&: y)   =parseBinExpr s portTable "&" x y
+parseExpr s portTable (x :*: y)   =parseBinExpr s portTable "*" x y
+parseExpr s portTable (x :/: y)   =parseBinExpr s portTable "/" x y
+parseExpr s portTable (x :**: y)  =parseBinExpr s portTable "**" x y
 
 {- UnairyExpr moet nog monadisch worden herschreven ----
 parseExpr s portTable (Neg x) n m     =parseUnairyExpr s portTable "neg" x n m
 parseExpr s portTable (Pos x) n m     =parseUnairyExpr s portTable "pos" x n m
+parseExpr s portTable (Abs x) n m     =parseUnairyExpr s portTable "abs" x n m
+parseExpr s portTable (Not x) n m     =parseUnairyExpr s portTable "not" x n m
 -}
---andere expressies gaan soortgelijk..
---Dus soortgelijk kan gedaan worden voor Adding Operators,Multiplying Operators en Shift Operators en Miscellaneous Operators
 
 parseBinExpr:: String -> [(String,Port)] -> String -> Expr -> Expr -> EnvSession Backtrack
 parseBinExpr s portTable name x y = do
@@ -377,23 +390,31 @@ parseFCall s portTable (FCall (NSimple (Basic "to_signed"))
 --dit deel werkt niet. Dit dient nog aangepast te worden:
 {-}
 parseFCall s portTable (FCall functionName assocElems) n m =
-      (Function newId (Just fName) (map SinglePort inports) outport ([],[]) () 
+      result
+      {-(Function newId (Just fName) (map SinglePort inports) outport ([],[]) () 
       --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
       ,[Wire Nothing (associatedOutports!!i) (inports!!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map get2out5 subParse)
       ,concat(map get3out5 subParse)
       ,n+inputLength
       ,m+1
-      )
+      )-}
     where 
       fName= parseFName functionName
       newId= fName ++ operatorId m
-      subParse=[] 
+      ((newN,newM),parsedsubOp)=mapAccumL (myparseAssocElem s portTable) (n+inputLength+1,m+1) assocElems
+
+      myparseAssocElem z x c v=((get4out5 re, get5out5 re),re)
+        where re=parseAssocElem z x c v
+
       --TODO mappen met doorgeven n en m : map (parseAssocElem n+inputLength m+1) s portTable assocElems
-      inputLength= length subParse 
+      inputLength= length parsedsubOp
       --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-      inports=[newPortId (i+n)|i<- [0..(inputLength-1)]]
-      outport=SinglePort $ newPortId (n) 
-      associatedOutports=map outOf subParse
+      inports=[newPortId (i+n)|i<- [1..(inputLength)]]
+
+      currOperator= Operator newId fName (map SinglePort inports) outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
+      typeOutPort= sureLookup s portTable
+      outport=portLike (newPortId n) typeOutPort
+      result=connect parsedsubOp currOperator "an expression wire" 
       --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
 
 parseAssocElem :: String -> [(String,Port)] -> AssocElem -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
