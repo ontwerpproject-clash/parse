@@ -92,7 +92,7 @@ parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) types portTable
       (parsedCsTableNew, outsResolved)=mapAccumL myResolveassociation parsedCsTable (outSignalsOf currentArchElem)
 
       myResolveassociation :: LookupTable2 -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
-      myResolveassociation = (\myTable -> resolveassociation myTable (inSignalsOf currentArchElem))
+      myResolveassociation myTable = resolveassociation myTable (inSignalsOf currentArchElem)
       
       concatted :: ([Wire ()],[ArchElem ()])
       concatted= (concat $ fst unzipped, concat $ snd unzipped)
@@ -173,12 +173,12 @@ myGeneralizedLookup (r@(PortReference (SinglePort x))) (((PortReference (SingleP
    |(untillDot x) == (untillDot y) = (y,result) : (myGeneralizedLookup r ps)
    |otherwise                     = (myGeneralizedLookup r ps)
 
-resolveAssociationNamed :: LookupTable2 -> [String] -> String -> String ->(LookupTable2,([Wire ()],[ArchElem ()]))
+resolveAssociationNamed :: LookupTable2 -> [String] -> String -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
 resolveAssociationNamed table ins outName x --x is a signaalname that can be found in a PortReference
   |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden in :\n" ++ (unlines $ map show table) ++ " ins are:" ++ (show ins)
-  |otherwise = (newTable2,result)
+  |otherwise = (newTable,result)
    where
-     toBeResolvedReference=(PortReference $ SinglePort x)
+     toBeResolvedReference=PortReference $ SinglePort x
      allRelated=myGeneralizedLookup toBeResolvedReference table -- TODO: x kan iets zijn als naam.A , als dat het geval is moet op naam worden gezocht. Ook kan het zijn dat als x naam is er in de tabel bijvoorbeeld een naam.A en een naam.B staat.
      exactFound=lookup x allRelated
      Just exact=exactFound
@@ -203,10 +203,6 @@ resolveAssociationNamed table ins outName x --x is a signaalname that can be fou
      concatted = (concat $ fst unzipped, concat $ snd unzipped)
      unzipped = unzip checkAll
      (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x) table currRess
-     newTable2 = (newTable \\ removeFromTable) ++ map setToTrue removeFromTable 
-      where
-        setToTrue :: LookupTableEntry2 -> LookupTableEntry2
-        setToTrue = (\(p,(v1,v2,v3,v4,v5,_)) -> (p,(v1,v2,v3,v4,v5,True)))
 
 resolveFoundAssociation ins outName x table currRes
   | alGehad = (table,([newWire],[]))
@@ -215,15 +211,20 @@ resolveFoundAssociation ins outName x table currRes
      alGehad = get6out6 currRes
      result |not (checkIsReference firstElem)=(newWire: (get2out6 currRes),(get1out6 currRes : get3out6 currRes))
             |otherwise                     =solveRecursivly
-     resTable | not (checkIsReference firstElem) = newTable
-              | otherwise = table
+     resTable | not (checkIsReference firstElem) = table2
+              | otherwise = newTable
+     thisTableEntry =(PortReference (SinglePort x),currRes)
+     table2=(table \\ [thisTableEntry]) ++ [setToTrue thisTableEntry ]
      firstElem=get1out6 currRes
      newWire = Wire (Just x) wireStartId outName ()
      wireStartId= (untillDot (getHighest(outportOf firstElem))) ++ (fromdot x)
      --newX=getHighest(outportOf firstElem)
      PortReference (SinglePort newX) = firstElem
      solveRecursivly = ((fst recursivlyResolved) ++ (get2out6 currRes) , (snd recursivlyResolved) ++ (get3out6 currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
-     (newTable,recursivlyResolved)=resolveAssociationNamed table ins outName newX
+     (newTable,recursivlyResolved)=resolveAssociationNamed table2 ins outName newX
+
+     setToTrue :: LookupTableEntry2 -> LookupTableEntry2
+     setToTrue = (\(p,(v1,v2,v3,v4,v5,_)) -> (p,(v1,v2,v3,v4,v5,True)))
 
 
 {-
@@ -320,7 +321,7 @@ parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> Int -> Int -> ((Int,
                                               ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))])
 parseWhenElses s portTable xs n m =mapAccumL (parseWhenElse s portTable) (n,m) xs
 
-parseWhenElse:: String -> [(String,Port)] -> (Int,Int) -> WhenElse ->
+parseWhenElse:: String -> [(String,Port)] -> (Int,Int) -> WhenElse -> 
                                          ((Int,Int),
                                          ([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
                                          ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)))
