@@ -1,20 +1,19 @@
-Function "maccComponent_0" Nothing [MultiPort "dszc8M2" [SinglePort "dszc8M2.A",SinglePort "dszc8M2.B"]] (SinglePort "casevalzc99zc992")
+Function "maccComponent_0" Nothing 
+[MultiPort "dszc8M2" [SinglePort "dszc8M2.A",SinglePort "dszc8M2.B"]] (SinglePort "casevalzc99zc992")
 
- (
+(
 [Operator "operatorId0" "+" [SinglePort "newPortId0",SinglePort "newPortId1"] (SinglePort "newPortId2") ()
 ,Register "NSimple \"acczc8W2\"10" (Just (SinglePort "regIn4")) (SinglePort"regOut5") ()
 ,Operator "resizeoperatorId1" "resize" [SinglePort "newPortId4",SinglePort "newPortId5"] (SinglePort "newPortId3") ()
 ,Operator "operatorId2" "*" [SinglePort "newPortId6",SinglePort "newPortId7"] (SinglePort "newPortId8") ()
-,Literal "litoperatorId3" "8" (SinglePort "newPortId9") ()
-]
-
+,Literal "litoperatorId3" "8" (SinglePort "newPortId9") ()]
 ,
 [Wire (Just "uzc8Y2") "newPortId2" "casevalzc99zc992" ()
 ,Wire (Just "acczc8W2") "regOut5" "newPortId0" ()
 ,Wire (Just "uzc8Y2") "newPortId2" "regIn4" ()
 ,Wire (Just "argzc9jzc9j3") "newPortId3" "newPortId1" ()
-,Wire (Just "an expression wire") "newPortId8" "newPortId4" ()
-,Wire (Just "an expression wire") "newPortId9" "newPortId5" ()
+,Wire (Just "a function call wire") "newPortId8" "newPortId4" ()
+,Wire (Just "a function call wire") "newPortId9" "newPortId5" ()
 ,Wire (Just "dszc8M2.A") "dszc8M2.A" "newPortId6" ()
-,Wire (Just "dszc8M2.B") "dszc8M2.B" "newPortId7" ()
+,Wire (Just "dszc8M2.B") "dszc8M2.B""newPortId7" ()
 ]) ()
