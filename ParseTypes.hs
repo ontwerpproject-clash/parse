@@ -19,14 +19,15 @@ testParseTypes vhdls
 parseTypes :: (VHDLId, DesignFile) -> [(VHDLId,(PortId -> Port))]
 parseTypes (id,designfile)
   | id /= (Basic "types") =	error $ "parseTypes: got id: " ++ show id ++ ", expecting types"
-  | null pkgDecs = error $ "parseType: couldn't a PackageDec"
-  | otherwise = parsePackageDec pkgDec
+  | null pkgDecs = error $ "parseType: couldn't find a PackageDec"
+  | otherwise = boolean : parsePackageDec pkgDec
     where
       DesignFile _ ls = designfile
       pkgDecs = filter isPkgDec ls
       LUPackageDec pkgDec = head pkgDecs
       isPkgDec (LUPackageDec _) = True
       isPkgDec _ = False
+      boolean = (Basic "boolean", \portId -> SinglePort portId)
 
 parsePackageDec :: PackageDec -> [(VHDLId,(PortId -> Port))]
 parsePackageDec (PackageDec id pkgDecItems)

@@ -15,6 +15,14 @@ get3out5 (_,_,e,_,_)=e
 get4out5 (_,_,_,n,_)=n
 get5out5 (_,_,_,_,m)=m
 
+get1out6 (q,_,_,_,_,_)=q
+get2out6 (_,w,_,_,_,_)=w
+get3out6 (_,_,e,_,_,_)=e
+get4out6 (_,_,_,n,_,_)=n
+get5out6 (_,_,_,_,m,_)=m
+get6out6 (_,_,_,_,_,x)=x
+
+
 -- Get the outport of an Architecture element
 outportOf :: ArchElem a -> Port
 outportOf (Function _ _ _ p _ _) = p
