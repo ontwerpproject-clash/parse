@@ -40,6 +40,13 @@ data Backtrack =
     wires         :: [Wire ()],
     prevArchElems :: [ArchElem ()]
   } deriving (Eq, Show)
+data Backtrack2 =
+  Backtrack2 {
+    bt   :: Backtrack,
+    seen :: Bool
+  } deriving (Eq, Show)
+
+type LookupTable2 = [(ArchElem (), Backtrack2)]
 
 -- Adds one to the counter and return the new Id
 getNewId ::  EnvSession Int
@@ -127,11 +134,19 @@ parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) portTable fs = 
   parsedCs <- mapM (myParseConcSm) cs
   let currentArchElem=searchFunction (parseId x) fs
       outsResolved  :: [([Wire ()],[ArchElem ()])]
-      outsResolved=map (resolveassociation parsedCs (inSignalsOf currentArchElem))  (outSignalsOf currentArchElem)
+      
+      parsedCsTable :: LookupTable2
+      parsedCsTable = map (\(a,b) -> (a,Backtrack2{bt=b,seen=False})) parsedCs
+
+      (parsedCsTableNew, outsResolved)=mapAccumL myResolveassociation parsedCsTable (outSignalsOf currentArchElem)
+
+      myResolveassociation :: LookupTable2 -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
+      myResolveassociation = (\myTable -> resolveassociation myTable (inSignalsOf currentArchElem))
+      
       concatted :: ([Wire ()],[ArchElem ()])
       concatted= (concat $ fst unzipped, concat $ snd unzipped)
       unzipped = unzip outsResolved
-      internals=removeReferences concatted parsedCs (inSignalsOf currentArchElem)
+      internals=removeReferences concatted parsedCsTableNew (inSignalsOf currentArchElem)
       newElem= addInternals currentArchElem internals
   return newElem
 parseArchBody (ArchBody _ (NSimple x) bs cs ) _ fs=undefined
@@ -454,17 +469,19 @@ searchVHDLsById s = do
 ---------------------------- Portreferences & associations ---------
 
 
-removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),Backtrack)] -> [String] -> ([Wire ()],[ArchElem ()])
+removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),Backtrack2)] -> [String] -> ([Wire ()],[ArchElem ()])
 removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
   | x `elem` ins = (fst niksVeranderd, snd niksVeranderd) --HACKED??
   | otherwise = (fst r , snd r)
     where
       r=  removeReferences ((ws  \\ [w] )  ++ (fst newReferences),(snd newReferences) ++ as ) table ins --TODO: dit geeft een oneindige lus als een element dat al bestond weer wordt toegevoegd, check of union i.p.v. concatteneren hier correct resultaat opleverd..
-      newReferences=resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
+      (_,newReferences) = resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof..
+      
       (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
       niksVeranderd=  removeReferences (ws,as) table ins
       --Just res = lookup a table
       --i = getHighest $ outportOf$ fst5 res
+
 removeReferences (ws,(PortReference (MultiPort _ _)):as) table ins = undefined --zal dit ooit voorkomen?
   where  
     r= removeReferences (ws,as)
@@ -482,51 +499,67 @@ findInof p ((w@(Wire name x y _)):ws)
   where
     Just n = name
     
-myGeneralizedLookup :: ArchElem () -> [(ArchElem (),Backtrack)] -> [(PortId,Backtrack)]
+myGeneralizedLookup :: ArchElem () -> [(ArchElem (),Backtrack2)] -> [(PortId,Backtrack2)]
 myGeneralizedLookup (PortReference (SinglePort x)) []=[]
 myGeneralizedLookup (r@(PortReference (SinglePort x))) (((PortReference (SinglePort y)),result):ps)
    |(untillDot x) == (untillDot y) = (y,result) : (myGeneralizedLookup r ps)
    |otherwise                     = (myGeneralizedLookup r ps)
 
-resolveassociation ::  [(ArchElem (),Backtrack)] -> [String] -> String -> ([Wire ()],[ArchElem ()])
+resolveassociation ::  LookupTable2 -> [String] -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
 resolveassociation table ins i =resolveAssociationNamed table ins i i
 
-resolveAssociationNamed :: [(ArchElem (), Backtrack)] -> [String] -> String -> String -> ([Wire ()],[ArchElem ()])
+resolveAssociationNamed :: [(ArchElem (), Backtrack2)] -> [String] -> String -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
 resolveAssociationNamed table ins outName x --x is a signaalname that can be found in a PortReference
 -- HACKED, Door de error weg te halen en de informatie uit het Backtrack element terug te geven, werkt het Function in function voorbeeld
 -- |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden: "++ show tableOut++"\n  ins are:" ++ (show ins)
-  |(allRelated == []) && (not (isIn (untillDot x))) = (wires (snd(head table)),[archElem (snd(head table))])
-  |otherwise =result
+  |(allRelated == []) && (not (isIn (untillDot x))) = (newTable2{- ???-}, (wires $ bt(snd(head table)),[archElem $ bt(snd(head table))]))
+  |otherwise =(newTable2,result)
    where
      toBeResolvedReference=(PortReference $ SinglePort x)
+     allRelated :: [(PortId,Backtrack2)]
      allRelated=myGeneralizedLookup toBeResolvedReference table -- TODO: x kan iets zijn als naam.A , als dat het geval is moet op naam worden gezocht. Ook kan het zijn dat als x naam is er in de tabel bijvoorbeeld een naam.A en een naam.B staat.
      exactFound=lookup x allRelated
      Just exact=exactFound
+      
      currRess | exactFound == Nothing = (map snd allRelated)  --neemt gewoon alles
               | otherwise =  [exact]
              --Als we naar iets zoeken wat we ergens al excact geparsed hebben, gaan we geen overbodige extra componenten opleveren.
              --Dus als we hebben ¨x <- naam.B, naam.B <- y¨ gaan we meteen naar het resultaat y en kijken we niet naar resultaten van bv naam.A parsen.
+     removeFromTable :: LookupTable2
+     removeFromTable | exactFound == Nothing = map (\(x,t) -> (PortReference (SinglePort x),t)) allRelated
+                     | otherwise = [(toBeResolvedReference,exact)]
+
+     result :: ([Wire ()],[ArchElem ()])
      result |isIn (untillDot x)            =([inWire],[])
             |otherwise                     =concatted
      isIn y= elem y ins
      inWire=Wire (Just x) x outName ()
      concatted = (concat $ fst unzipped, concat $ snd unzipped)
      unzipped = unzip checkAll
-     checkAll = map (resolveFoundAssociation table ins outName x) currRess
      -- Hier gebleven met herschrijven
+     (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x) table currRess
+     newTable2 = (newTable \\ removeFromTable) ++ map setToTrue removeFromTable 
+      where
+        setToTrue :: (ArchElem (), Backtrack2) -> (ArchElem (), Backtrack2)
+        setToTrue = (\(a,bt2) -> (a,bt2{seen=True}))
 
 
-resolveFoundAssociation table ins outName x currRes
-   = result
+resolveFoundAssociation ins outName x table currRes
+  | alGehad = (table,([newWire],[]))
+  | otherwise = (resTable,result)
     where
-     result |not (checkIsReference firstElem)=(newWire: (wires currRes),(archElem currRes : prevArchElems currRes))
+     alGehad = seen currRes
+     result |not (checkIsReference firstElem)=(newWire: (wires $ bt currRes),((archElem $ bt currRes) : (prevArchElems $ bt currRes)))
             |otherwise                     =solveRecursivly
-     firstElem=archElem currRes
+     resTable | not (checkIsReference firstElem) = newTable
+              | otherwise = table
+     firstElem=archElem $ bt currRes
      newWire = Wire (Just x) wireStartId outName ()
      wireStartId= (untillDot (getHighest(outportOf firstElem))) ++ (fromdot x)
-     newX=getHighest(outportOf firstElem)
-     solveRecursivly = ((fst recursivlyResolved) ++ (wires currRes) , (snd recursivlyResolved) ++ (prevArchElems currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
-     recursivlyResolved=resolveAssociationNamed table ins outName newX
+     --newX=getHighest(outportOf firstElem)
+     PortReference (SinglePort newX) = firstElem
+     solveRecursivly = ((fst recursivlyResolved) ++ (wires $ bt currRes) , (snd recursivlyResolved) ++ (prevArchElems $ bt currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
+     (newTable,recursivlyResolved)=resolveAssociationNamed table ins outName newX
 
 isInSignal (PortReference (SinglePort x)) ins  = elem x ins
 isInSignal (PortReference (MultiPort _ _)) ins = undefined --kan nu nog niet voorkomen in prototype..
