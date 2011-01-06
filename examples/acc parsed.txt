@@ -1,0 +1,15 @@
+Function "accComponent_0" Nothing [SinglePort "xzgCF2"] (SinglePort "reszgCPzgCP2") 
+
+(
+[Operator "operatorId0" "+" [SinglePort "newPortId0",SinglePort "newPortId1"] 
+(SinglePort "newPortId2") ()
+
+,Register "NSimple \"accStatezgCJ2\"3" (Just (SinglePort "regIn1")) (SinglePort "regOut2") ()
+]
+
+,
+[Wire (Just "uzgCL2") "newPortId2" "reszgCPzgCP2" ()
+,Wire (Just "an expression wire") "xzgCF2" "newPortId1" ()
+,Wire (Just "accStatezgCJ2") "regOut2" "newPortId0" ()
+,Wire (Just "uzgCL2") "newPortId2" "regIn1" ()
+]) ()
