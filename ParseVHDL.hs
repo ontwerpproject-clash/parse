@@ -38,7 +38,7 @@ data Backtrack =
     archElem      :: ArchElem (),
     wires         :: [Wire ()],
     prevArchElems :: [ArchElem ()]
-  } deriving (Eq)
+  } deriving (Eq, Show)
 
 -- Adds one to the counter and return the new Id
 getNewId ::  EnvSession Int
@@ -120,7 +120,6 @@ parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) portTable fs = 
   types <- MonadState.get types
   --tabel met poorten bijbehorend aan de signalen.
   signalDecs <- mapM (parseSignalDecsOf) bs
-  
   let pTable=portTable ++ catMaybes signalDecs 
       myParseConcSm :: ConcSm -> EnvSession (ArchElem (), Backtrack )
       myParseConcSm c = parseConcSm c pTable
@@ -169,17 +168,13 @@ parseConcSm (CSSASm (s :<==: x)) portTable = do
   result <- parseConWforms (parseVHDLName s) portTable x
   return (PortReference $ SinglePort (parseVHDLName s), result) 
 
-      
+parseConcSm (CSISm (CompInsSm _ insUnit (PMapAspect pMapAspect))) portTable = do
+  function <- parseInsUnit insUnit
+  let filteredAssocElems = filter (\((Just id) :=>: _) -> fromVHDLId id `notElem` ["clock","resetn"]) pMapAspect
+      wires = parsePMapAspect filteredAssocElems
+      result = (PortReference $ SinglePort (getHighest $ outportOf function) , (Backtrack function wires []))
+  return result
 
---- Nog niet monadisch herschreven ---
-{-}
-parseConcSm (CSISm (CompInsSm _ insUnit (PMapAspect pMapAspect))) portTable n m = result
-  where
-    function@(Function _ _ _ outport _ _) = parseInsUnit insUnit
-    filteredAssocElems = filter (\((Just id) :=>: _) -> fromVHDLId id `notElem` ["clock","resetn"]) pMapAspect
-    wires = parsePMapAspect filteredAssocElems
-    result = (PortReference $ SinglePort (getHighest outport) ,(function (), wires, [], n, m))
--}
 parseConcSm (CSPSm x) portTable=undefined
 parseConcSm (CSGSm x) portTable=undefined
 
@@ -187,48 +182,45 @@ parseConcSm (CSGSm x) portTable=undefined
 parseConWforms :: String -> [(String,Port)] -> ConWforms -> EnvSession Backtrack
 parseConWforms s portTable (ConWforms [] (Wform f) Nothing) = parseWformElems s portTable f
 -- Describes a Mux
--- Nog niet monadisch herschreven
 {-}
 parseConWforms s portTable (ConWforms x f Nothing)
-   |length selects /= 0  = [trueResult]
-   |otherwise           = error  "no result from the parsed whenElses statements, please fix parseConWforms."
-     where
-	       --a Mux without its in- and outgoing wires:
-           currMux=Mux (operatorId m) inportNames outPort selectNames ()
-           typePort= sureLookup s portTable
-           outPort= portLike (newPortId n) typePort
-           inportNames= [portLike (newPortId (number+n)) typePort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
-           totalIns=(length x+1)
-           secondN=n+totalIns
-           totalSelects=length x
-           selectNames= [portLike (newPortId (number+secondN)) typePort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
-           thirdN=secondN+totalSelects+1
+  |length selects /= 0  = result
+  |otherwise           = error  "no result from the parsed whenElses statements, please fix parseConWforms."
+    do
+      n1 <- getNewId
+      n2 <- getNewId
+      n3 <- getNewId
+      n4 <- getNewId
+      --a Mux without its in- and outgoing wires: 
+      let typePort= sureLookup s portTable
+          outPort= portLike (newPortId n1) typePort
+          inportNames= [portLike (newPortId (number+n2)) typePort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
+          totalIns=(length x+1)
+          totalSelects=length x
+          selectNames= [portLike (newPortId (number+n3)) typePort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
 
-		   -- Subcompoenents need to be parsed:
-           parsedWhenElses= parseWhenElses s portTable x thirdN (m+1)
-           otherwiseUitgang=parseWform s portTable f newN newM
-           newN=fst (fst parsedWhenElses)
-           newM=snd (fst parsedWhenElses)
+       -- Subcompoenents need to be parsed:
+           parsedWhenElses= parseWhenElses s portTable x
+           otherwiseUitgang=parseWform s portTable f 
            (ins,selects)=unzip (snd parsedWhenElses) 
-		   
-		   --some wires between the subcomponent and the new mux need to be made:
+       
+       --some wires between the subcomponent and the new mux need to be made:
            tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
+           currMux=Mux (operatorId n4) inportNames outPort selectNames ()
+
            trueResult=connectSelects selects tempResult "a select mux wire"
+           result = [trueResult]
 
-parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> Int -> Int -> ((Int,Int),
-                                              [([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
-                                              ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int))])
-parseWhenElses s portTable xs n m =mapAccumL (parseWhenElse s portTable) (n,m) xs
+parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> EnvSession [([Backtrack],Backtrack)]
+parseWhenElses s portTable xs = mapAccumL (parseWhenElse s portTable) xs
 
-parseWhenElse:: String -> [(String,Port)] -> (Int,Int) -> WhenElse ->
-                                         ((Int,Int),
-                                         ([(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)]
-                                         ,(ArchElem (),[Wire ()],[ArchElem ()],Int,Int)))
-parseWhenElse s portTable (n,m) (WhenElse wform expr)
-   =( nm2tuple,(resultWform,resultGaurd))
-     where resultWform=parseWform s portTable wform n m
-           resultGaurd=parseExpr s portTable expr (get4out5 (last resultWform)) (get5out5 (last resultWform)) --volgens mij is resultWform altijd maar 1 element
-           nm2tuple=(get4out5 resultGaurd, get5out5 resultGaurd)
+parseWhenElse:: String -> [(String,Port)] -> WhenElse -> EnvSession ([Backtrack],Backtrack)
+parseWhenElse s portTable (WhenElse wform expr) = do
+  resultWform <- parseWform s portTable wform
+  resultGaurd <- parseExpr s portTable expr
+  --volgens mij is resultWform altijd maar 1 element
+  return (resultWform,resultGaurd)
+
 
 -}
 --verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
@@ -432,14 +424,12 @@ newPortId m= "newPortId" ++ show m
 
 
 ------------------------ Functions in Functions ---------------
----- Moet nog monadisch worden herschreven ---------
-{-}
-parseInsUnit :: InsUnit -> ArchElem ()
-parseInsUnit (IUEntity name) = function
-  where
-    filename = parseVHDLName name
-    function = parseDesignFile $ searchVHDLsById "bla"
 
+parseInsUnit :: InsUnit -> EnvSession (ArchElem ())
+parseInsUnit (IUEntity name) = do 
+  let filename = parseVHDLName name
+  vhdl <- searchVHDLsById filename
+  parseDesignFile vhdl
 
 parsePMapAspect :: [AssocElem] -> [Wire ()]
 parsePMapAspect [] = []
@@ -449,10 +439,17 @@ parsePMapAspect (a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):a
 
 -- Searches the list of rendered VHDL files by clash for the 
 -- designfile that has the given id
-searchVHDLsById :: String -> DesignFile
-searchVHDLsById s = undefined
+searchVHDLsById :: String -> EnvSession DesignFile
+searchVHDLsById s = do
+  vhdls <- MonadState.get vhdlFiles
+  let vhdlTable = map (\(id, df) -> (fromVHDLId id, df)) vhdls
+      entry = lookup s vhdlTable
+      result 
+        |isNothing entry = error $ "Designfile the following Designfile is missing: " ++ s
+        |otherwise = (\(Just df) -> df) entry
+  return result
 
--}
+
 ---------------------------- Portreferences & associations ---------
 
 
@@ -495,26 +492,23 @@ resolveassociation table ins i =resolveAssociationNamed table ins i i
 
 resolveAssociationNamed :: [(ArchElem (), Backtrack)] -> [String] -> String -> String -> ([Wire ()],[ArchElem ()])
 resolveAssociationNamed table ins outName x --x is a signaalname that can be found in a PortReference
-  |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden in :\n  ins are:" ++ (show ins)
+-- HACKED, Door de error weg te halen en de informatie uit het Backtrack element terug te geven, werkt het Function in function voorbeeld
+-- |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden: "++ show tableOut++"\n  ins are:" ++ (show ins)
+  |(allRelated == []) && (not (isIn (untillDot x))) = (wires (snd(head table)),[archElem (snd(head table))])
   |otherwise =result
    where
      toBeResolvedReference=(PortReference $ SinglePort x)
      allRelated=myGeneralizedLookup toBeResolvedReference table -- TODO: x kan iets zijn als naam.A , als dat het geval is moet op naam worden gezocht. Ook kan het zijn dat als x naam is er in de tabel bijvoorbeeld een naam.A en een naam.B staat.
      exactFound=lookup x allRelated
      Just exact=exactFound
-
      currRess | exactFound == Nothing = (map snd allRelated)  --neemt gewoon alles
               | otherwise =  [exact]
              --Als we naar iets zoeken wat we ergens al excact geparsed hebben, gaan we geen overbodige extra componenten opleveren.
              --Dus als we hebben ¨x <- naam.B, naam.B <- y¨ gaan we meteen naar het resultaat y en kijken we niet naar resultaten van bv naam.A parsen.
-
-
      result |isIn (untillDot x)            =([inWire],[])
             |otherwise                     =concatted
-
      isIn y= elem y ins
      inWire=Wire (Just x) x outName ()
-
      concatted = (concat $ fst unzipped, concat $ snd unzipped)
      unzipped = unzip checkAll
      checkAll = map (resolveFoundAssociation table ins outName x) currRess
@@ -526,13 +520,10 @@ resolveFoundAssociation table ins outName x currRes
     where
      result |not (checkIsReference firstElem)=(newWire: (wires currRes),(archElem currRes : prevArchElems currRes))
             |otherwise                     =solveRecursivly
-
      firstElem=archElem currRes
      newWire = Wire (Just x) wireStartId outName ()
      wireStartId= (untillDot (getHighest(outportOf firstElem))) ++ (fromdot x)
-
      newX=getHighest(outportOf firstElem)
-
      solveRecursivly = ((fst recursivlyResolved) ++ (wires currRes) , (snd recursivlyResolved) ++ (prevArchElems currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
      recursivlyResolved=resolveAssociationNamed table ins outName newX
 
@@ -559,8 +550,6 @@ searchFunction s (f@(Function x _ _ _ _ _):fs)
   |otherwise   = searchFunction s fs
 searchFunction s []=error $ "a functie with the name" ++ s ++ "was not found by the parser. We might have messed up, sorry for the inconvienience.."
 searchFunction s _=error  "the impossible happened" --De architectuurelementen in de invoer horen nl allemaal Funtions te zijn...
-
-
 
 -------- HELPER -------
 
