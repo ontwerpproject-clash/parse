@@ -401,20 +401,22 @@ parseFCall s portTable (FCall functionName assocElems) n m =
     where 
       fName= parseFName functionName
       newId= fName ++ operatorId m
-      ((newN,newM),parsedsubOp)=mapAccumL (myparseAssocElem s portTable) (n+inputLength+1,m+1) assocElems
+      ((newN,newM),parsedsubOps)=mapAccumL (myparseAssocElem s portTable) (n+inputLength+1,m+1) assocElems
 
       myparseAssocElem z x c v=((get4out5 re, get5out5 re),re)
         where re=parseAssocElem z x c v
 
       --TODO mappen met doorgeven n en m : map (parseAssocElem n+inputLength m+1) s portTable assocElems
-      inputLength= length parsedsubOp
+      inputLength= length parsedsubOps
       --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-      inports=[newPortId (i+n)|i<- [1..(inputLength)]]
+      inports=[portLike (newPortId (i+n)) (typeInPorts!!(i-1))|i<- [1..inputLength]]
 
-      currOperator= Operator newId fName (map SinglePort inports) outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
+      typeInPorts=map (outportOf.get1out5) parsedsubOps
+
+      currOperator= Operator newId fName inports outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
       typeOutPort= sureLookup s portTable
       outport=portLike (newPortId n) typeOutPort
-      result=connect parsedsubOp currOperator "an expression wire" 
+      result=connect parsedsubOps currOperator "a function call wire" 
       --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
 
 parseAssocElem :: String -> [(String,Port)] -> AssocElem -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
