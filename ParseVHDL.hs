@@ -10,6 +10,7 @@ import Language.VHDL.AST hiding (Function)
 
 import Datastruct
 import ParseTypes
+import {-# SOURCE #-} ParseState
 
 -- These imports are required for easy state sessions
 import qualified Control.Monad.Trans.State as State            -- Needs package: transformers
@@ -163,7 +164,7 @@ parseSigDec (x@(SigDec id t (Just expr)))=do return ("het volgende kan nog niet 
 ----------------------------------------------------------------------------------------------------
 
 parseConcSm :: ConcSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
-parseConcSm (CSBSm x) _ =undefined
+parseConcSm (CSBSm x) portTable = parseBlockSm x portTable
 parseConcSm (CSSASm (s :<==: x)) portTable = do 
   result <- parseConWforms (parseVHDLName s) portTable x
   return (PortReference $ SinglePort (parseVHDLName s), result) 
@@ -594,3 +595,12 @@ untillDot :: String -> String
 untillDot []        =[]
 untillDot (('.'):sx)=[]
 untillDot (x:xs)    =x: (untillDot xs)
+
+{-
+  A state (register)
+-}
+parseBlockSm :: BlockSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
+parseBlockSm b@(BlockSm l _ _ _ _) portTable
+  | label == "state" = parseState b portTable
+  | otherwise = error $ "can't yet parse BlockSm with label " ++ label
+  where label = fromVHDLId l
