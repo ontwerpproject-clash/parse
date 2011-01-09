@@ -6,6 +6,13 @@ Build-Type: Simple
 Cabal-Version: >= 1.2
 
 Library
-  build-depends: clash == 0.1.1.1.9999, vhdl, base >= 4, ghc-paths
+  build-depends:
+    clash == 0.1.1.1.9999,
+    vhdl,
+    base >= 4,
+    ghc-paths,
+    transformers,
+    data-accessor-template, data-accessor-transformers,
+    containers
   exposed-modules: ParseClash
-  other-modules: Datastruct, Helper, ParseExpr, ParseTypes, ParseVHDL
+  other-modules: Datastruct, ParseTypes, ParseVHDL
