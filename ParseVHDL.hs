@@ -387,10 +387,7 @@ parseFCall s portTable (FCall (NSimple (Basic "to_signed"))
   = parseExpr s portTable (PrimLit x)
   --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
 
---dit deel werkt niet. Dit dient nog aangepast te worden:
-{-}
-parseFCall s portTable (FCall functionName assocElems) n m =
-      result
+parseFCall s portTable (FCall functionName assocElems) = do
       {-(Function newId (Just fName) (map SinglePort inports) outport ([],[]) () 
       --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
       ,[Wire Nothing (associatedOutports!!i) (inports!!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map get2out5 subParse)
@@ -398,34 +395,34 @@ parseFCall s portTable (FCall functionName assocElems) n m =
       ,n+inputLength
       ,m+1
       )-}
-    where 
-      fName= parseFName functionName
-      newId= fName ++ operatorId m
-      ((newN,newM),parsedsubOps)=mapAccumL (myparseAssocElem s portTable) (n+inputLength+1,m+1) assocElems
+  n1 <- getNewId
+  n2 <- getNewId
+  parsedsubOps <- mapM (parseAssocElem s portTable) assocElems
+  let inputLength= length parsedsubOps
+  inportIds <- mapM (\_ -> getNewId) [1..inputLength]
+  let
+    fName= parseFName functionName
+    newId= fName ++ operatorId n1
 
-      myparseAssocElem z x c v=((get4out5 re, get5out5 re),re)
-        where re=parseAssocElem z x c v
+    --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
+    inports=[portLike (newPortId i) t|(i,t) <- zip inportIds typeInPorts]
 
-      --TODO mappen met doorgeven n en m : map (parseAssocElem n+inputLength m+1) s portTable assocElems
-      inputLength= length parsedsubOps
-      --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-      inports=[portLike (newPortId (i+n)) (typeInPorts!!(i-1))|i<- [1..inputLength]]
+    typeInPorts=map (outportOf.archElem) parsedsubOps
 
-      typeInPorts=map (outportOf.get1out5) parsedsubOps
+    currOperator= Operator newId fName inports outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
+    typeOutPort= sureLookup s portTable
+    outport=portLike (newPortId n2) typeOutPort
+    result=connect parsedsubOps currOperator "a function call wire"
+    --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
+  return result
 
-      currOperator= Operator newId fName inports outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
-      typeOutPort= sureLookup s portTable
-      outport=portLike (newPortId n) typeOutPort
-      result=connect parsedsubOps currOperator "a function call wire" 
-      --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
-
-parseAssocElem :: String -> [(String,Port)] -> AssocElem -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-parseAssocElem s portTable (Nothing :=>: (Open)) n m=  (PortReference (SinglePort ("Nothing :=>: (Open) kan nog niet geparsd worden")),[],[],n,m)
-parseAssocElem s portTable (Nothing :=>: (ADExpr e)) n m= parseExpr s portTable e n m
-parseAssocElem s portTable (Nothing :=>: (ADName x)) n m= parseExpr s portTable (PrimName x) n m
+parseAssocElem :: String -> [(String,Port)] -> AssocElem -> EnvSession (Backtrack)
+parseAssocElem s portTable (Nothing :=>: (Open)) = return Backtrack {archElem=PortReference (SinglePort ("Nothing :=>: (Open) kan nog niet geparsd worden")),wires=[],prevArchElems=[]}
+parseAssocElem s portTable (Nothing :=>: (ADExpr e)) = parseExpr s portTable e
+parseAssocElem s portTable (Nothing :=>: (ADName x)) = parseExpr s portTable (PrimName x)
 --Hiervoor moet x waarschijnlijk opgezocht kunnen worden en moet dus mogelijk meer informatie aan parseExpr worden meegegeven:
-parseAssocElem s portTable (Just x :=>: y) n m = (PortReference (SinglePort ("Just _ :=>: _ kan nog niet geparsd worden")),[],[],n,m)
--}
+parseAssocElem s portTable (Just x :=>: y) = return Backtrack {archElem=PortReference (SinglePort ("Just _ :=>: _ kan nog niet geparsd worden")),wires=[],prevArchElems=[]}
+
 --ik heb deze methode zonder het in te zien 2 keer geschreven.. zie parseVHDLName in ParseVHDLvoor z´n duplicaat...:
 parseFName :: VHDLName -> String
 parseFName (NSimple x)                 = parseId x
