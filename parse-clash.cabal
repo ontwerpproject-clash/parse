@@ -15,4 +15,4 @@ Library
     data-accessor-template, data-accessor-transformers,
     containers
   exposed-modules: ParseClash
-  other-modules: Datastruct, ParseTypes, ParseVHDL
+  other-modules: Datastruct, ParseTypes, ParseVHDL, ParseState
