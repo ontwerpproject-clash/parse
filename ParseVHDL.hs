@@ -186,9 +186,10 @@ parseConcSm (CSSASm (s :<==: x)) portTable = do
 
 parseConcSm (CSISm (CompInsSm _ insUnit (PMapAspect pMapAspect))) portTable = do
   function <- parseInsUnit insUnit
-  let filteredAssocElems = filter (\((Just id) :=>: _) -> fromVHDLId id `notElem` ["clock","resetn"]) pMapAspect
-      wires = parsePMapAspect filteredAssocElems
-      result = (PortReference $ SinglePort (getHighest $ outportOf function) , (Backtrack function wires []))
+  let toResolve = (getHighest $ outportOf function)
+      filteredAssocElems = filter (\((Just id) :=>: _) -> fromVHDLId id `notElem` ["clock","resetn","toResolve"]) pMapAspect
+      (wires,refs) = parsePMapAspect filteredAssocElems
+      result = (PortReference $ SinglePort toResolve , (Backtrack function wires refs))
   return result
 
 parseConcSm (CSPSm x) portTable=undefined
@@ -477,11 +478,16 @@ parseInsUnit (IUEntity name) = do
   vhdl <- searchVHDLsById filename
   parseDesignFile vhdl
 
-parsePMapAspect :: [AssocElem] -> [Wire ()]
-parsePMapAspect [] = []
-parsePMapAspect (a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):ass) = result
+parsePMapAspect :: [AssocElem] -> ([Wire ()], [ArchElem ()])
+parsePMapAspect [] = ([],[])
+parsePMapAspect(a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):[]) = (wire,[])
   where
-    result = (Wire Nothing (parseSimpleName start) (parseSimpleName destination) ()) : parsePMapAspect ass
+    wire = [(Wire Nothing (parseSimpleName start) (parseSimpleName destination) ())]
+parsePMapAspect (a@((Just destination) :=>: ADExpr (PrimName (NSimple start))):ass) = (wire:recursiveWires, ref:recursiveRefs)
+  where
+    wire = (Wire Nothing (parseSimpleName start) (parseSimpleName destination) ())
+    ref = (PortReference (SinglePort (parseSimpleName start)))
+    (recursiveWires, recursiveRefs) = parsePMapAspect ass
 
 -- Searches the list of rendered VHDL files by clash for the 
 -- designfile that has the given id
