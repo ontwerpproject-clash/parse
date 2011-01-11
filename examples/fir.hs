@@ -4,7 +4,6 @@ ScopedTypeVariables, TypeFamilies #-}
 module FIR where
 
 import CLasH.HardwareTypes
-import CLasH.Translator.Annotations
 
 type Word = Signed D16
 

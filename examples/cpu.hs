@@ -4,7 +4,6 @@ ScopedTypeVariables, TypeFamilies #-}
 module CPU where
 
 import CLasH.HardwareTypes
-import CLasH.Translator.Annotations
 
 type Word     = Signed D16
 type CpuState = State (Vector D4 Word)

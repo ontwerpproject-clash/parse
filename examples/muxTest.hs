@@ -4,7 +4,6 @@
 ScopedTypeVariables, TypeFamilies #-}
 module MuxTest where
 import CLasH.HardwareTypes
-import CLasH.Translator.Annotations
 --type Word = SizedInt D8
 type Word = Signed D8
 
