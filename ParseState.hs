@@ -2,6 +2,7 @@ module ParseState (parseState) where
 import Language.VHDL.AST
 import Datastruct
 import ParseVHDL
+import Helper
 
 parseState :: BlockSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
 parseState (BlockSm l _ _ _ [state_reset,state_update]) portTable = parseStateupdate state_update portTable

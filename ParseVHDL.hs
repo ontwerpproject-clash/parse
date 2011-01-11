@@ -1,72 +1,49 @@
+--------------------------------------------------------
+-- Parser VHDL to Datastruct
+--------------------------------------------------------
 {-# LANGUAGE TemplateHaskell #-}
 module ParseVHDL where
 
+-- Standard imports
 import Data.Maybe (isNothing,catMaybes)
 import Data.List
-
+import qualified Control.Monad.Trans.State as State
+import qualified Data.Accessor.Monad.Trans.State as MonadState
+import qualified Data.Accessor.Template
+import qualified Data.Set as Set
 
 -- VHDL Imports
 import Language.VHDL.AST hiding (Function)
 
+-- Local Imports
+import Helper
 import Datastruct
 import ParseTypes
 import {-# SOURCE #-} ParseState
 
--- These imports are required for easy state sessions
-import qualified Control.Monad.Trans.State as State            -- Needs package: transformers
-import qualified Data.Accessor.Monad.Trans.State as MonadState -- Needs package: data-accessor-transformers, data-accessor
-import qualified Data.Accessor.Template                        -- Needs package: data-accessors-template, data-accessor
-import qualified Data.Set as Set
+--------------------------------------------------------
+-- Parse Designfile & Entity
+--------------------------------------------------------
 
-type Types = [(VHDLId, PortId -> Port)]
-
--- Make a datatype that represents the state
-data EnvState = ES {
-   counter_   :: Int,
-   vhdlFiles_ :: [(VHDLId, DesignFile)],
-   types_     :: Types
-}
-initState = ES 0 [] []
-
--- Let template-haskell derive easy accessors for the state
-Data.Accessor.Template.deriveAccessors ''EnvState
-
--- Make a type alias for computations that work with the state made above
-type EnvSession a = State.State EnvState a
-
-data Backtrack =
-  Backtrack {
-    archElem      :: ArchElem (),
-    wires         :: [Wire ()],
-    prevArchElems :: [ArchElem ()]
-  } deriving (Eq, Show)
-data Backtrack2 =
-  Backtrack2 {
-    bt   :: Backtrack,
-    seen :: Bool
-  } deriving (Eq, Show)
-
-type LookupTable2 = [(ArchElem (), Backtrack2)]
-
--- Adds one to the counter and return the new Id
-getNewId ::  EnvSession Int
-getNewId = do
-  curCounter <- MonadState.get counter
-  let newId = curCounter + 1
-  MonadState.set counter newId
-  return newId
-
+-- | ParseVhdlAsts is the main function of the parser.
+-- | The functions starts a session and initialises the Environment State
+-- | in which all the global variables are stored. The runSession returns
+-- | a tuple of buildup ArchElem and the end State.
+-- | 
+-- | input: Output of clash; a list of Names and Designfiles
+-- | output: An ArchElem based on the Designfiles from the input
 parseVhdlAsts :: [(VHDLId, DesignFile)] -> ArchElem ()
 parseVhdlAsts vhdls
   = fst (runSession (initEnvironment vhdls types) initState)
   where
     typesAst = head vhdls
+    -- TypesTable is buildup for future referencing
     types = parseTypes typesAst
 
--- Example of a pure computation that executes a statefull computation given an initial state
-runSession :: EnvSession a -> EnvState -> (a, EnvState)
-runSession session initState = State.runState session initState
-
+-- | The Environment State is initialized with the global values
+-- | of the vhdl files and the types table. The Counter is set to 0.
+-- | This is the last function in the chain of monadic function, as it returns
+-- | the final Environment Session variable.
 initEnvironment :: [(VHDLId, DesignFile)] -> Types -> EnvSession (ArchElem ())
 initEnvironment vhdls settypes = do
     MonadState.set counter 0
@@ -75,32 +52,50 @@ initEnvironment vhdls settypes = do
     let topentity = vhdls !! 1
     parseTopEntity topentity
 
-
+-- Takes the DesignFile from the VHDL table
 parseTopEntity :: (VHDLId, DesignFile) -> EnvSession (ArchElem ())
---TODO met de VHDLId moet misschien nog wat worden gedaan
 parseTopEntity (id,df) = parseDesignFile(df)
 
+-- Ignores the ContextItems and passes through the Entity
 parseDesignFile :: DesignFile -> EnvSession (ArchElem ())
--- TODO voor als nog wordt er niet met de ContextItems van de DesignFile gedaan. Hier moet de id uit gehaald worden, voor zover test
 parseDesignFile (DesignFile contextItems ls) = parseEntity ls
 
 parseEntity :: [LibraryUnit] -> EnvSession (ArchElem ())
 parseEntity ((LUEntity e):ls) = parseEntityDec e ls 
 
+-- | The EntityDec is the first LibraryUnit that is processes. EntityDec holds
+-- | the in- and outports of the main function; the hardware. The parsed EntityDec
+-- | combined with an empty Function element is used to parse the next LibraryUnit
+-- | the LUArch, which holds the Architecture body. 
+-- | Instead of returning just the EntityDec it, passes it on to parse more
+-- | LibraryUnits. 
+-- | Current function only parses EntityDec and LUArch, it doesn't process 
+-- | LUPackageDec and LUPackageBody. This could be implemented in the future,
+-- | uptill now there are no examples using these LibraryUnits.
 parseEntityDec :: EntityDec -> [LibraryUnit] -> EnvSession (ArchElem ())
 parseEntityDec (EntityDec id sigs) ls = do
     let isLUArch (LUArch _) = True
         isLuArch _          = False
-        (LUArch archbody):_ = filter isLUArch ls  --TODO: doe iets met de overige archbody's als die bestaan
+        (LUArch archbody):_ = filter isLUArch ls
+        -- The clock and resetn signal are ignored in the visualisation tool. Therefore they're removed.
+        -- Get the port id's on the Top entity, no difference between in- and outports.
         parsedSigs = filter (\(IfaceSigDec id _ _) -> fromVHDLId id `notElem` ["clock","resetn"]) sigs
+    -- returns a list of Ports and a boolean is set true for the inports.
     ports <- mapM (parseIfaceSigDec) parsedSigs
     let ins = map fst $ filter snd ports
     let out = head $ map fst $ filter (not . snd) ports
-    portTable <- mapM (parseIfaceSigDec2) parsedSigs
-    let legefunctie = Function (parseId id) Nothing ins out ([],[]) ()
-    result <- parseArchBody archbody portTable [legefunctie]
+    -- List of Port id's and a boolean whether it is an inport.
+    portTable <- mapM (buildPortTableEntry) parsedSigs
+    -- Empty function that is the base of the Architecture that is buildup during the parsing process.
+    let emptyfunction = Function (parseId id) Nothing ins out ([],[]) ()
+    result <- parseArchBody archbody portTable [emptyfunction]
     return result
 
+-- | Parses an IfaceSigdec, interface signal declaration. It checks whether the
+-- | described Port is an Inport, and is returned in the tuple.
+-- | output:  Tuple of described Port element and Inport boolean
+-- |            True -> Inport, False -> Outport
+-- | error:   On unidentified type of the signal declaration
 parseIfaceSigDec :: IfaceSigDec -> EnvSession (Port,Bool)
 parseIfaceSigDec (IfaceSigDec sigId direction t) = do
     typeTable <- MonadState.get types
@@ -112,8 +107,12 @@ parseIfaceSigDec (IfaceSigDec sigId direction t) = do
           | otherwise = (getPort (parseId sigId),isIn)
     return result
 
-parseIfaceSigDec2 :: IfaceSigDec -> EnvSession (String, Port)   
-parseIfaceSigDec2 (IfaceSigDec id _ t) = do
+-- | Given a signal declaration, it returns a tuple of the
+-- | id of the string and the corresponding Port.
+-- | output:  Tuple of port id as a String, and Port element
+-- | error:   On unidentified type of the signal declaration
+buildPortTableEntry :: IfaceSigDec -> EnvSession (String, Port)   
+buildPortTableEntry (IfaceSigDec id _ t) = do
     typeTable <- MonadState.get types
     let found = lookup t typeTable
         Just getPort = found
@@ -122,7 +121,10 @@ parseIfaceSigDec2 (IfaceSigDec id _ t) = do
           | otherwise = ((parseId id), getPort (parseId id))
     return result
      
------------------------------------------parseArchBody----------------------------------------------
+--------------------------------------------------------
+-- Parsing Architecture body
+--------------------------------------------------------
+
 parseArchBody :: ArchBody -> [(String,Port)] -> [ArchElem ()] -> EnvSession (ArchElem ())
 parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) portTable fs = do
   types <- MonadState.get types
@@ -176,8 +178,6 @@ parseSigDec (SigDec id t Nothing) = do
   return result
 parseSigDec (x@(SigDec id t (Just expr)))=do return ("het volgende kan nog niet geparsed worden: " ++ (show x),SinglePort "error")
 
-----------------------------------------------------------------------------------------------------
-
 parseConcSm :: ConcSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
 parseConcSm (CSBSm x) portTable = parseBlockSm x portTable
 parseConcSm (CSSASm (s :<==: x)) portTable = do 
@@ -194,7 +194,10 @@ parseConcSm (CSISm (CompInsSm _ insUnit (PMapAspect pMapAspect))) portTable = do
 parseConcSm (CSPSm x) portTable=undefined
 parseConcSm (CSGSm x) portTable=undefined
 
--- Describes an Element
+--------------------------------------------------------
+-- Parsing Mux element
+--------------------------------------------------------
+
 parseConWforms :: String -> [(String,Port)] -> ConWforms -> EnvSession Backtrack
 parseConWforms s portTable (ConWforms [] (Wform f) Nothing) = parseWformElems s portTable f
 -- Describes a Mux
@@ -209,11 +212,11 @@ parseConWforms s portTable (ConWforms x f Nothing)
       n4 <- getNewId
       --a Mux without its in- and outgoing wires: 
       let typePort= sureLookup s portTable
-          outPort= portLike (newPortId n1) typePort
-          inportNames= [portLike (newPortId (number+n2)) typePort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
+          outPort= portLike ("newPortId" ++ n1) typePort
+          inportNames= [portLike ("newPortId" ++ (number+n2)) typePort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
           totalIns=(length x+1)
           totalSelects=length x
-          selectNames= [portLike (newPortId (number+n3)) typePort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
+          selectNames= [portLike ("newPortId" ++ (number+n3)) typePort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
 
        -- Subcompoenents need to be parsed:
            parsedWhenElses= parseWhenElses s portTable x
@@ -222,7 +225,7 @@ parseConWforms s portTable (ConWforms x f Nothing)
        
        --some wires between the subcomponent and the new mux need to be made:
            tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
-           currMux=Mux (operatorId n4) inportNames outPort selectNames ()
+           currMux=Mux ("operatorId" ++ n4) inportNames outPort selectNames ()
 
            trueResult=connectSelects selects tempResult "a select mux wire"
            result = [trueResult]
@@ -271,6 +274,7 @@ parseWformElems :: String -> [(String,Port)] -> [WformElem] -> EnvSession Backtr
 parseWformElems s portTable [] = undefined
 parseWformElems s portTable ((WformElem f Nothing):_) = parseExpr s portTable f
 
+parseVHDLName :: VHDLName -> Id
 parseVHDLName (NSimple s)     =parseSimpleName s
 parseVHDLName (NSelected s)   =parseSelectedName s
 parseVHDLName (NIndexed s)    =parseIndexedName s
@@ -283,17 +287,20 @@ parseSimpleName  s=parseId s
 parseSelectedName::SelectedName-> Id
 parseSelectedName (x :.: y)=(parsePrefix x) ++ "." ++ (parseSuffix y)
 
+parseIndexedName (IndexedName x es)=undefined
+parseSliceName s=undefined
+parseAttibName s=undefined
+
+parsePrefix :: Prefix -> Id
 parsePrefix x=parseVHDLName x
 
 parseSuffix:: Suffix -> Id
 parseSuffix (SSimple s)=parseSimpleName s
 parseSuffix (All)=""
 
-parseIndexedName (IndexedName x es)=undefined
-parseSliceName s=undefined
-parseAttibName s=undefined
-
---- EXPRESSIONS ------------------
+--------------------------------------------------------
+-- Parsing Expressions
+--------------------------------------------------------
 
 parseExpr :: String -> [(String,Port)] -> Expr -> EnvSession Backtrack
 parseExpr s portTable (PrimFCall x) = parseFCall s portTable x
@@ -301,7 +308,7 @@ parseExpr s portTable (PrimFCall x) = parseFCall s portTable x
 parseExpr s portTable (PrimLit c)= do
   n1 <- getNewId
   n2 <- getNewId
-  return (Backtrack (Literal ("lit" ++ operatorId n1) c (portLike (newPortId n2) (sureLookup s portTable)) ()) [] [])
+  return (Backtrack (Literal ("lit" ++ "operatorId" ++ n1) c (portLike ("newPortId" ++ n2) (sureLookup s portTable)) ()) [] [])
 
 --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
 --mogelijk dient ook hier PortLike gebruikt worden..
@@ -353,11 +360,11 @@ parseBinExpr s portTable name x y = do
   n4 <- getNewId
   subOpX <- parseExpr s portTable x 
   subOpY <- parseExpr s portTable y
-  let currOperator=Operator (operatorId n1) name ins out ()
-      in1=portLike (newPortId n2) portType
-      in2=portLike (newPortId n3) portType
+  let currOperator=Operator ("operatorId" ++ n1) name ins out ()
+      in1=portLike ("newPortId" ++ n2) portType
+      in2=portLike ("newPortId" ++ n3) portType
       ins=[in1,in2]
-      out=portLike (newPortId n4) portType
+      out=portLike ("newPortId" ++ n4) portType
       parsedsubOps=[subOpX,subOpY]
       portType=sureLookup s portTable 
       --although this is a valid Port, it may not be unique. therefoe we use a portLike instead of this excact port for the outport.
@@ -370,9 +377,9 @@ parseBinExpr s portTable name x y = do
 parseUnairyExpr :: String -> [(String,Port)] -> String -> Expr -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 parseUnairyExpr s portTable name x n m=result 
   where
-    currOperator=Operator (operatorId m) name ins out ()
-    ins=[portLike (newPortId n) portType]
-    out=portLike (newPortId (n+1)) portType
+    currOperator=Operator ("operatorId" ++ m) name ins out ()
+    ins=[portLike ("newPortId" ++ n) portType]
+    out=portLike ("newPortId" ++ (n+1)) portType
 
     parsedsubOp=[parseExpr s portTable x (n+2) (m+1)]
 
@@ -402,16 +409,16 @@ parseFCall s portTable (FCall functionName assocElems) = do
   inportIds <- mapM (\_ -> getNewId) [1..inputLength]
   let
     fName= parseFName functionName
-    newId= fName ++ operatorId n1
+    newId= fName ++ "operatorId" ++ n1
 
     --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-    inports=[portLike (newPortId i) t|(i,t) <- zip inportIds typeInPorts]
+    inports=[portLike ("newPortId" ++ i) t|(i,t) <- zip inportIds typeInPorts]
 
     typeInPorts=map (outportOf.archElem) parsedsubOps
 
     currOperator= Operator newId fName inports outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
     typeOutPort= sureLookup s portTable
-    outport=portLike (newPortId n2) typeOutPort
+    outport=portLike ("newPortId" ++ n2) typeOutPort
     result=connect parsedsubOps currOperator "a function call wire"
     --mogelijk afhankelijk van subParse (als daar een uitvoernaam bijzit)? Zo ja, later aanpassen
   return result
@@ -431,6 +438,10 @@ parseFName (NIndexed x)                = "kan nog niet geparsd worden" ++ show (
 parseFName (NSlice x)                  = "kan nog niet geparsd worden" ++ show (x)
 parseFName (NAttribute x)              = "kan nog niet geparsd worden" ++ show (x)
 
+parseId::  VHDLId-> Id
+parseId s=fromVHDLId s
+
+
 --deze methode is oud en zal waarschijnlijk niet meer nodig zijn..:
 outOf::ArchElem a-> PortId
 outOf (Operator q w es r t)=extract (r)
@@ -447,19 +458,18 @@ outOf (PortReference p)=extract (p)
     extract (MultiPort x [y])= extract y  
     --dit werkt voor de huidige manier van selected names parsen
 
-parseId::  VHDLId-> Id
-parseId s=fromVHDLId s
 
+ {-}
 --ja, de volgende functies zijn triviaal en oorspronkelijk bedoeld als placeholders. Echter is er wijnig reden ze aan te passen op het huidige moment van schrijven:
 operatorId::Int -> String
 operatorId m= "operatorId" ++ show m
 
 newPortId m= "newPortId" ++ show m
+-} 
 
-
-
-
------------------------- Functions in Functions ---------------
+--------------------------------------------------------
+-- Parsing Function inside Function architecture
+--------------------------------------------------------
 
 parseInsUnit :: InsUnit -> EnvSession (ArchElem ())
 parseInsUnit (IUEntity name) = do 
@@ -486,8 +496,9 @@ searchVHDLsById s = do
   return result
 
 
----------------------------- Portreferences & associations ---------
-
+--------------------------------------------------------
+-- Resolving Port References & Associations
+--------------------------------------------------------
 
 removeReferences :: ([Wire ()],[ArchElem ()]) -> [(ArchElem (),Backtrack2)] -> [String] -> ([Wire ()],[ArchElem ()])
 removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
@@ -581,6 +592,7 @@ resolveFoundAssociation ins outName x table currRes
      setToTrue :: (ArchElem (),Backtrack2) -> (ArchElem (),Backtrack2) 
      setToTrue = (\(a,bt) -> (a,bt{seen=True}))
 
+isInSignal :: ArchElem a -> [String] -> Bool
 isInSignal (PortReference (SinglePort x)) ins  = elem x ins
 isInSignal (PortReference (MultiPort _ _)) ins = undefined --kan nu nog niet voorkomen in prototype..
 
@@ -605,53 +617,11 @@ searchFunction s (f@(Function x _ _ _ _ _):fs)
 searchFunction s []=error $ "a functie with the name" ++ s ++ "was not found by the parser. We might have messed up, sorry for the inconvienience.."
 searchFunction s _=error  "the impossible happened" --De architectuurelementen in de invoer horen nl allemaal Funtions te zijn...
 
--------- HELPER -------
 
--- Get the outport of an Architecture element
-outportOf :: ArchElem a -> Port
-outportOf (Function _ _ _ p _ _) = p
-outportOf (Operator _ _ _ p _) = p
-outportOf (Literal _ _ p _) = p
-outportOf (Mux _ _ p _ _) = p
-outportOf (Register _ _ p _) = p
-outportOf (PortReference p) = p
+--------------------------------------------------------
+-- Parsing Register elements
+--------------------------------------------------------
 
-inportsOf :: ArchElem a -> [Port]
-inportsOf (Mux _ inportNames _ _ _)     = inportNames
-inportsOf (Operator _ _ inportNames _ _) = inportNames
-
-getHighest::Port -> PortId
-getHighest (SinglePort x)=x
-getHighest (MultiPort x _)=x
-
---helpfunctie, ik vindt het overzichtelijker de error hier op te vangen:
-sureLookup t table
-  | isNothing found = error $ "Could not find this:" ++ show t
-  | otherwise = x
-    where
-    found = lookup t table
-    Just x = found
-
---helpfuntie, deze maakt een poort die qua structuur lijkt op de eerste, maar dan met de meegegeven naam
-portLike :: String -> Port -> Port
-portLike name (SinglePort id)   =SinglePort (name ++ (fromdot id))
-portLike name (MultiPort id ps) =MultiPort (name ++ (fromdot id)) (map (portLike name) ps)
-
-fromdot :: String -> String
---geeft alles vanaf de eerste punt van de string op; zoals .A.B vanuit naam.A.B
-fromdot []=[]
-fromdot (s@(('.'):sx))=s
-fromdot (x:xs)=fromdot xs
-
-untillDot :: String -> String
---geeft alles tot de eerste punt van de string op; zoals naam vanuit naam.A.B
-untillDot []        =[]
-untillDot (('.'):sx)=[]
-untillDot (x:xs)    =x: (untillDot xs)
-
-{-
-  A state (register)
--}
 parseBlockSm :: BlockSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
 parseBlockSm b@(BlockSm l _ _ _ _) portTable
   | label == "state" = parseState b portTable
