@@ -7,7 +7,7 @@ Cabal-Version: >= 1.2
 
 Library
   build-depends:
-    clash == 0.1.1.1.9999,
+    clash-owp-custom >= 0.1.2.2,
     vhdl,
     base >= 4,
     ghc-paths,
