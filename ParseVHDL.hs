@@ -305,7 +305,7 @@ parseSuffix (All)=""
 parseExpr :: String -> [(String,Port)] -> Expr -> EnvSession Backtrack
 parseExpr s portTable (PrimFCall x) = parseFCall s portTable x
 
-parseExpr s portTable (PrimLit c)= do
+parseExpr s portTable (PrimLit c)= do --This will create a literal.
   n1 <- getNewId
   n2 <- getNewId
   return (Backtrack (Literal ("lit" ++ "operatorId" ++ n1) c (portLike ("newPortId" ++ n2) (sureLookup s portTable)) ()) [] [])
@@ -313,11 +313,13 @@ parseExpr s portTable (PrimLit c)= do
 --verwijst naar de meegegeven VHDL naam. Kan in een latere iteratie worden weggehaald
 --mogelijk dient ook hier PortLike gebruikt worden..
 parseExpr s portTable (PrimName x)  = do 
-  return (Backtrack (PortReference (SinglePort (parseFName x))) [] [])
+  return (Backtrack (PortReference (SinglePort (parseFName x))) [] []) --indicates that we found a VHDL name, e.a. a reference to another signal.
+  --parseExpr currently doesn't have the information to resolve this recursivly and therefore the PortReference datatype indicates that this should be resolved later on.
 
 --we have not come across this type in one of our examples yet. We will implement it when we encounter it.   
 parseExpr s portTable (Aggregate eas)=undefined 
 
+--these are all the standard operators that are defined in Expr, they're all parsed in the same way:
 parseExpr s portTable (And x y)   =parseBinExpr s portTable "and" x y
 parseExpr s portTable (Or x y)    =parseBinExpr s portTable "or" x y
 parseExpr s portTable (Xor x y)   =parseBinExpr s portTable "xor" x y
@@ -346,12 +348,18 @@ parseExpr s portTable (x :/: y)   =parseBinExpr s portTable "/" x y
 parseExpr s portTable (x :**: y)  =parseBinExpr s portTable "**" x y
 
 {- UnairyExpr moet nog monadisch worden herschreven ----
+--these are all the standard unairy operators that are defined in Expr, they're all parsed in the same way:
 parseExpr s portTable (Neg x) n m     =parseUnairyExpr s portTable "neg" x n m
 parseExpr s portTable (Pos x) n m     =parseUnairyExpr s portTable "pos" x n m
 parseExpr s portTable (Abs x) n m     =parseUnairyExpr s portTable "abs" x n m
 parseExpr s portTable (Not x) n m     =parseUnairyExpr s portTable "not" x n m
 -}
 
+--This function parses a binary expression. name is imply the name the Operator will get.
+--It first parses its sub expressions recursivly. Then it creates the current operator. 
+--The ports of the current Operator are creatediunder the assuption that the operator has the same Porttype on both it's inports as well as on its outport.
+--We assume these assuptions are always valid for the standard operators that are defined in Expr. 
+--Note that this doens't aply for Functions defined in Expr even though they're also parsed to operators. They are parsed in parseFCall
 parseBinExpr:: String -> [(String,Port)] -> String -> Expr -> Expr -> EnvSession Backtrack
 parseBinExpr s portTable name x y = do
   n1 <- getNewId
@@ -366,14 +374,14 @@ parseBinExpr s portTable name x y = do
       ins=[in1,in2]
       out=portLike ("newPortId" ++ n4) portType
       parsedsubOps=[subOpX,subOpY]
-      portType=sureLookup s portTable 
-      --although this is a valid Port, it may not be unique. therefoe we use a portLike instead of this excact port for the outport.
-      result=connect parsedsubOps currOperator "an expression wire" 
-      --Ik gebruik nu ook hier connect i.p.v. de dingen expliciet uit te schrijven omdat dit algemener is en meer compositioneel is, wat in het onderhoudt mogelijk handig is.
+      portType=sureLookup s portTable --although this is a valid Port, it may not be unique. therefore we use a portLike on it instead of using this exact port for the outport.
+      
+      result=connect parsedsubOps currOperator "an expression wire"
   return result
 
 ----- nog niet monadisch herschreven ---------
 {-}
+--Parses unairy expressions in the same way as the binary expressions:
 parseUnairyExpr :: String -> [(String,Port)] -> String -> Expr -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
 parseUnairyExpr s portTable name x n m=result 
   where
@@ -387,7 +395,6 @@ parseUnairyExpr s portTable name x n m=result
     result=connect parsedsubOp currOperator "an expression wire" --Ik gebruik nu ook hier connect i.p.v. de dingen expliciet uit te schrijven omdat dit algemener is en meer compositioneel is, wat in het onderhoudt mogelijk handig is.
 
 -}
--- ENORME HACK - Dit is alleen voor een Literal. Er wordt niets met de tweede Primlit gedaan.
 parseFCall s portTable (FCall (NSimple (Basic "to_signed"))
   [Nothing :=>: ADExpr (PrimLit x)
   ,Nothing :=>: ADExpr (PrimLit y)])
@@ -395,28 +402,21 @@ parseFCall s portTable (FCall (NSimple (Basic "to_signed"))
   --dit laat de to_signed functie en diens tweede argument weg, is in princiepe niet nodig aangezien dit ook later bij de GUI gedaan kan worden (nu gaat data van het type verloren), maar geeft een netter uitzient resultaat.
 
 parseFCall s portTable (FCall functionName assocElems) = do
-      {-(Function newId (Just fName) (map SinglePort inports) outport ([],[]) () 
-      --aan de hand van de naam van de functie: fName, kunnen de inwendige componenten worden opgezocht wanneer nodig
-      ,[Wire Nothing (associatedOutports!!i) (inports!!i) ()| i<- [0..(inputLength-1)] ] ++ concat (map get2out5 subParse)
-      ,concat(map get3out5 subParse)
-      ,n+inputLength
-      ,m+1
-      )-}
   n1 <- getNewId
   n2 <- getNewId
-  parsedsubOps <- mapM (parseAssocElem s portTable) assocElems
+  parsedsubOps <- mapM (parseAssocElem s portTable) assocElems --recursivly parses everething attached to this function's inports.
   let inputLength= length parsedsubOps
   inportIds <- mapM (\_ -> getNewId) [1..inputLength]
   let
     fName= parseFName functionName
     newId= fName ++ "operatorId" ++ n1
 
-    --Als in subParse ook een uitvoer, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
-    inports=[portLike ("newPortId" ++ i) t|(i,t) <- zip inportIds typeInPorts]
+    --Als in subParse ook een uitvoer zit, wordt dit 1 minder en worden andere dingen ook wat ingewikkelder, ik neem hier aan dat dit niet het geval is, omdat ik het niet weet en ik niet graag onnodig werk doe.
+    inports=[portLike ("newPortId" ++ i) t|(i,t) <- zip inportIds typeInPorts] --creates inports of the appropriate type
 
-    typeInPorts=map (outportOf.archElem) parsedsubOps
+    typeInPorts=map (outportOf.archElem) parsedsubOps --tries to deduce it's inports type by looking at the type of outport it's attached to. TODO:currently this will fail when it's attacked to a PortReference.
 
-    currOperator= Operator newId fName inports outport ()    --Function newId (Just fName) (map SinglePort inports) outport ([],[]) ()
+    currOperator= Operator newId fName inports outport ()   --functions in de VHDL are mapped to operators in our datastruct.
     typeOutPort= sureLookup s portTable
     outport=portLike ("newPortId" ++ n2) typeOutPort
     result=connect parsedsubOps currOperator "a function call wire"

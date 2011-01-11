@@ -32,7 +32,19 @@ data ArchElem a =
 
     Register Id (Maybe In) Out a |
 
-    PortReference Port
+    PortReference Port 
+	--This is a temporary architecture element that the parser creates to keep track of which signals need to be connected.
+	--it specefies that a signal was found while parsing an expression.
+	--The parser currently parses expressions without amplying recursion on any singals found. Whenever it encounters a signal it creates a PortReference instead.
+	
+	--When the parser parses a concurrent_signal_assignment_statement it maps a portReference of the signal to the parsing result of its conditional_waveforms.
+	--Doing so for all the statements encountered then gives a table where signals are mapped to their corresponding specefication in our datastruct.
+	--When encounterering a PortReference while collection the various parse results, it  will be lookud up in the table and it will be exchanged 
+	--with our datastruct representation of the signal stored in that PortReference. 
+	--This process is done recursively untill a nonPortReference element is found, therefore enabling us to draw a direct wire between arguments instead of 
+	--having multible elements without any functionality in between.
+	--Care is being taken to ensure that each entry in the table is only lookud up once to avoid endless loops. If a PortReference is encountered multible time,
+	--the representation of that Portreference is already present in the current function and only a Wire tothe topelement of that representation is drawn. 
 
     deriving (Show,Eq,Ord)
 
