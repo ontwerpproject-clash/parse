@@ -125,44 +125,63 @@ buildPortTableEntry (IfaceSigDec id _ t) = do
 -- Parsing Architecture body
 --------------------------------------------------------
 
+-- | The ArchBody holds all the architecture of the Entity. It consists of
+-- | a name, a list of Block declarative items and a list of concurrent
+-- | statements: ArchBody VHDLId VHDLName [BlockDecItem] [ConcSm].
+-- | The block outports from the BlockDecItems are added to the portTable, and
+-- | Conc statements are parsed and return Backtrack elements.
+-- | These Backtrack elements are resolve, complete the PortReferences, and
+-- | are combined to one Architecture element.
 parseArchBody :: ArchBody -> [(String,Port)] -> [ArchElem ()] -> EnvSession (ArchElem ())
 parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) portTable fs = do
   types <- MonadState.get types
-  --tabel met poorten bijbehorend aan de signalen.
+  -- Outports of architecture blocks, these are added to the Port table
   signalDecs <- mapM (parseSignalDecsOf) bs
   let pTable=portTable ++ catMaybes signalDecs 
+      -- For better reading, myParseConcSm is writen, with type declaration
       myParseConcSm :: ConcSm -> EnvSession (ArchElem (), Backtrack )
       myParseConcSm c = parseConcSm c pTable
   parsedCs <- mapM (myParseConcSm) cs
-  let currentArchElem=searchFunction (parseId x) fs
+  let -- In order to detect loops a boolean is added to the Backtrack element
       parsedCsTable :: LookupTable2
       parsedCsTable = map (\(a,b) -> (a,Backtrack2{bt=b,seen=False})) parsedCs
+      -- To resolve the references we start at the OutPort of the top level Function
+      currentArchElem=searchFunction (parseId x) fs
       myResolveassociation :: LookupTable2 -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
       myResolveassociation myTable = resolveassociation myTable (inSignalsOf currentArchElem)
       outsResolved  :: [([Wire ()],[ArchElem ()])]
       (parsedCsTableNew, outsResolved)=mapAccumL myResolveassociation parsedCsTable (outSignalsOf currentArchElem)
+      -- All Wires are constructed by resolving all the PortReference associations
       unzipped = unzip outsResolved
       concatted :: ([Wire ()],[ArchElem ()])
       concatted= (concat $ fst unzipped, concat $ snd unzipped)
+      -- Removing PortReferences, should not be in final ArchElem
       internals=removeReferences concatted parsedCsTableNew (inSignalsOf currentArchElem)
+      -- Final step in a DesignFile. Final lists of ArchElems and Wires are added.
       newElem= addInternals currentArchElem internals
   return newElem
 parseArchBody (ArchBody _ (NSimple x) bs cs ) _ fs=undefined
 parseArchBody (ArchBody (Basic "structural") _ bs cs ) _ fs=undefined
 parseArchBody (ArchBody _ _ bs cs ) _ fs=undefined
 
+-- | Insert all the ArchElems and Wires into the Function.
 addInternals :: ArchElem a -> ([Wire a],[ArchElem a]) -> ArchElem a
 addInternals (Function q w e r _ a) (ws,as)=Function q w e r (as,ws) a
 addInternals _ _=error "can not add internals to an architecture element that is not a Function"
 
+-- | Only parses Signal declarations.
 parseSignalDecsOf :: BlockDecItem -> EnvSession (Maybe (String,Port))
-parseSignalDecsOf (BDISPB s)=do return Nothing --wordt later ergens anders geparsed
+parseSignalDecsOf (BDISPB s)=do return Nothing
 parseSignalDecsOf (BDISD s) =do
   parsedSigs <- parseSigDec s
   return (Just parsedSigs)
 
+-- | First is checked if the Signal declaration is in the Types Table. The
+-- | table returns the proper Port element.
+-- | Output: 2 Tuple of the port id of the signal, and the Port element
 parseSigDec :: SigDec -> EnvSession (String,Port)
 parseSigDec (SigDec id t Nothing) = do
+  -- Get types Table from the Environment
   types <- MonadState.get types
   let found = lookup t types
       portId=parseId id
@@ -174,6 +193,18 @@ parseSigDec (SigDec id t Nothing) = do
   return result
 parseSigDec (x@(SigDec id t (Just expr)))=do return ("het volgende kan nog niet geparsed worden: " ++ (show x),SinglePort "error")
 
+-- | The concurrent statements describe the actual Architecture elements
+-- | in a Function. There are these types of statements:
+-- |    CSBSm BlockSm           Describes a State
+-- |    CSSASm ConSigAssignSm   Describes a Signal assignment, usual Operaters, Muxes and Literals
+-- |    CSISm CompInsSm         Describes a lowerlevel architectures, Function in a Function
+-- |    CSPSm ProcSm            Is not used at the moment
+-- |    CSGSm GenerateSm        Is not used at the moment
+-- |
+-- | After parsing the statement it return a PortReference which is needed
+-- | to link the ArchElem to the Function. The Backtrack record holds all elements
+-- | that need to be added to the Function.
+-- | Output: 2 Tuple of a PortReference and a Backtrack record
 parseConcSm :: ConcSm -> [(String,Port)] -> EnvSession (ArchElem (), Backtrack)
 parseConcSm (CSBSm x) portTable = parseBlockSm x portTable
 parseConcSm (CSSASm (s :<==: x)) portTable = do 
@@ -200,33 +231,33 @@ parseConWforms s portTable (ConWforms [] (Wform f) Nothing) = parseWformElems s 
 -- Describes a Mux
 
 parseConWforms s portTable (ConWforms x f Nothing) = do
-      n1 <- getNewId
-      n2 <- getNewId
-      n3 <- getNewId
-      n4 <- getNewId
-      --a Mux without its in- and outgoing wires: 
-      let typePort= sureLookup s portTable
-          outPort= portLike ("newPortId" ++ n1) typePort
-          totalIns=(length x+1)
-          totalSelects=length x
-      inIds <- mapM (\_ -> getNewId) [1..totalIns]
-      selectIds <- mapM (\_ -> getNewId) [1..totalSelects]
-      let inportNames= [portLike ("newPortId" ++ n) typePort|n <- inIds]
-          selectNames= [portLike ("newPortId" ++ n) typePort |n <- selectIds]
+  n1 <- getNewId
+  n2 <- getNewId
+  n3 <- getNewId
+  n4 <- getNewId
+  --a Mux without its in- and outgoing wires: 
+  let typePort= sureLookup s portTable
+      outPort= portLike ("newPortId" ++ n1) typePort
+      totalIns=(length x+1)
+      totalSelects=length x
+  inIds <- mapM (\_ -> getNewId) [1..totalIns]
+  selectIds <- mapM (\_ -> getNewId) [1..totalSelects]
+  let inportNames= [portLike ("newPortId" ++ n) typePort|n <- inIds]
+      selectNames= [portLike ("newPortId" ++ n) typePort |n <- selectIds]
 
-       -- Subcompoenents need to be parsed:
-      parsedWhenElses <- parseWhenElses s portTable x
-      otherwiseExit <- parseWform s portTable f 
-      let (ins,selects) = unzip parsedWhenElses 
-          --some wires between the subcomponent and the new mux need to be made:
-          tempResult=connect (ins ++ [otherwiseExit]) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
-          currMux=Mux ("operatorId" ++ n4) inportNames outPort selectNames ()
+   -- Subcompoenents need to be parsed:
+  parsedWhenElses <- parseWhenElses s portTable x
+  otherwiseExit <- parseWform s portTable f 
+  let (ins,selects) = unzip parsedWhenElses 
+      --some wires between the subcomponent and the new mux need to be made:
+      tempResult=connect (ins ++ [otherwiseExit]) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
+      currMux=Mux ("operatorId" ++ n4) inportNames outPort selectNames ()
 
-          trueResult=connectSelects selects tempResult "a select mux wire"
-          result
-            |length selects /= 0  = trueResult
-            |otherwise            = error  "no result from the parsed whenElses statements, please fix parseConWforms."
-      return result
+      trueResult=connectSelects selects tempResult "a select mux wire"
+      result
+        |length selects /= 0  = trueResult
+        |otherwise            = error  "no result from the parsed whenElses statements, please fix parseConWforms."
+  return result
         
 parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> EnvSession [(Backtrack,Backtrack)]
 parseWhenElses s portTable xs = mapM (parseWhenElse s portTable) xs
@@ -250,7 +281,6 @@ connect xs m name = (Backtrack m allWires allElems)
     makeNewWire (x,i)=Wire (Just name) x i ()
 
 --lijkst heel sterk op connect, misschien 1 algemenere functie maken die beide afhandeld?
--- nog niet monadisch herschreven --------
 connectSelects :: [Backtrack] -> Backtrack -> String -> Backtrack
 connectSelects xs c name = Backtrack mux allWires allElems
   where
@@ -453,28 +483,32 @@ outOf (PortReference p)=extract (p)
     --dit werkt voor de huidige manier van selected names parsen
 
 
- {-}
---ja, de volgende functies zijn triviaal en oorspronkelijk bedoeld als placeholders. Echter is er wijnig reden ze aan te passen op het huidige moment van schrijven:
-operatorId::Int -> String
-operatorId m= "operatorId" ++ show m
-
-newPortId m= "newPortId" ++ show m
--} 
-
 --------------------------------------------------------
 -- Parsing Function inside Function architecture
 --------------------------------------------------------
 
+-- | The InsUnit specifies another entity with architecture. Because
+-- | it does not hold the architecture the VHDLId refers to the proper
+-- | VHDL Designfile. This file is parsed the same way as the current 
+-- | Designfile. The Function that is return will be a Function in this
+-- | Function.
 parseInsUnit :: InsUnit -> EnvSession (ArchElem ())
 parseInsUnit (IUEntity name) = do 
   let filename = parseVHDLName name
   vhdl <- searchVHDLsById filename
   parseDesignFile vhdl
 
+-- | A Portmap consists of a list of AssocElems which literly describe 
+-- | the wires. The wires to the inport of the Function are added to the
+-- | Backtrack element and PortReferences are made. For the outpot of the 
+-- | Function the proper PortReferens is return and will be used to resolve
+-- | the other references.
 parsePMapAspect :: [AssocElem] -> (ArchElem (), [Wire ()], [ArchElem ()])
+-- Last in the list is the outport of the Function
 parsePMapAspect(a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):[]) = (resolve,[],[])
   where
     resolve = (PortReference (SinglePort (parseSimpleName destination)))
+-- Inports to the function
 parsePMapAspect (a@((Just destination) :=>: ADExpr (PrimName (NSimple start))):ass) = (resolve, wire:recursiveWires, ref:recursiveRefs)
   where
     wire = (Wire Nothing (parseSimpleName start) (parseSimpleName destination) ())
