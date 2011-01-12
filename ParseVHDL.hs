@@ -135,19 +135,15 @@ parseArchBody (ArchBody (Basic "structural") (NSimple x) bs cs ) portTable fs = 
       myParseConcSm c = parseConcSm c pTable
   parsedCs <- mapM (myParseConcSm) cs
   let currentArchElem=searchFunction (parseId x) fs
-      outsResolved  :: [([Wire ()],[ArchElem ()])]
-      
       parsedCsTable :: LookupTable2
       parsedCsTable = map (\(a,b) -> (a,Backtrack2{bt=b,seen=False})) parsedCs
-
-      (parsedCsTableNew, outsResolved)=mapAccumL myResolveassociation parsedCsTable (outSignalsOf currentArchElem)
-
       myResolveassociation :: LookupTable2 -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
       myResolveassociation myTable = resolveassociation myTable (inSignalsOf currentArchElem)
-      
+      outsResolved  :: [([Wire ()],[ArchElem ()])]
+      (parsedCsTableNew, outsResolved)=mapAccumL myResolveassociation parsedCsTable (outSignalsOf currentArchElem)
+      unzipped = unzip outsResolved
       concatted :: ([Wire ()],[ArchElem ()])
       concatted= (concat $ fst unzipped, concat $ snd unzipped)
-      unzipped = unzip outsResolved
       internals=removeReferences concatted parsedCsTableNew (inSignalsOf currentArchElem)
       newElem= addInternals currentArchElem internals
   return newElem
@@ -188,8 +184,8 @@ parseConcSm (CSISm (CompInsSm _ insUnit (PMapAspect pMapAspect))) portTable = do
   function <- parseInsUnit insUnit
   let toResolve = (getHighest $ outportOf function)
       filteredAssocElems = filter (\((Just id) :=>: _) -> fromVHDLId id `notElem` ["clock","resetn","toResolve"]) pMapAspect
-      (wires,refs) = parsePMapAspect filteredAssocElems
-      result = (PortReference $ SinglePort toResolve , (Backtrack function wires refs))
+      (resolve,wires,refs) = parsePMapAspect filteredAssocElems
+      result = (resolve, (Backtrack function wires refs))
   return result
 
 parseConcSm (CSPSm x) portTable=undefined
@@ -202,11 +198,8 @@ parseConcSm (CSGSm x) portTable=undefined
 parseConWforms :: String -> [(String,Port)] -> ConWforms -> EnvSession Backtrack
 parseConWforms s portTable (ConWforms [] (Wform f) Nothing) = parseWformElems s portTable f
 -- Describes a Mux
-{-}
-parseConWforms s portTable (ConWforms x f Nothing)
-  |length selects /= 0  = result
-  |otherwise           = error  "no result from the parsed whenElses statements, please fix parseConWforms."
-    do
+
+parseConWforms s portTable (ConWforms x f Nothing) = do
       n1 <- getNewId
       n2 <- getNewId
       n3 <- getNewId
@@ -214,35 +207,37 @@ parseConWforms s portTable (ConWforms x f Nothing)
       --a Mux without its in- and outgoing wires: 
       let typePort= sureLookup s portTable
           outPort= portLike ("newPortId" ++ n1) typePort
-          inportNames= [portLike ("newPortId" ++ (number+n2)) typePort|number<- [1..totalIns]]  --old:[newPortId (number+n) |number<- [1..totalIns]]
           totalIns=(length x+1)
           totalSelects=length x
-          selectNames= [portLike ("newPortId" ++ (number+n3)) typePort |number<- [1..totalSelects]]    --old:[newPortId (number+secondN) |number<- [1..totalSelects]]
+      inIds <- mapM (\_ -> getNewId) [1..totalIns]
+      selectIds <- mapM (\_ -> getNewId) [1..totalSelects]
+      let inportNames= [portLike ("newPortId" ++ n) typePort|n <- inIds]
+          selectNames= [portLike ("newPortId" ++ n) typePort |n <- selectIds]
 
        -- Subcompoenents need to be parsed:
-           parsedWhenElses= parseWhenElses s portTable x
-           otherwiseUitgang=parseWform s portTable f 
-           (ins,selects)=unzip (snd parsedWhenElses) 
-       
-       --some wires between the subcomponent and the new mux need to be made:
-           tempResult=connect ((concat ins) ++ otherwiseUitgang) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
-           currMux=Mux ("operatorId" ++ n4) inportNames outPort selectNames ()
+      parsedWhenElses <- parseWhenElses s portTable x
+      otherwiseExit <- parseWform s portTable f 
+      let (ins,selects) = unzip parsedWhenElses 
+          --some wires between the subcomponent and the new mux need to be made:
+          tempResult=connect (ins ++ [otherwiseExit]) currMux "a mux input wire" --select entrances still need to be linked here -- is last hier zo goed?
+          currMux=Mux ("operatorId" ++ n4) inportNames outPort selectNames ()
 
-           trueResult=connectSelects selects tempResult "a select mux wire"
-           result = [trueResult]
+          trueResult=connectSelects selects tempResult "a select mux wire"
+          result
+            |length selects /= 0  = trueResult
+            |otherwise            = error  "no result from the parsed whenElses statements, please fix parseConWforms."
+      return result
+        
+parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> EnvSession [(Backtrack,Backtrack)]
+parseWhenElses s portTable xs = mapM (parseWhenElse s portTable) xs
 
-parseWhenElses:: String -> [(String,Port)] -> [WhenElse] -> EnvSession [([Backtrack],Backtrack)]
-parseWhenElses s portTable xs = mapAccumL (parseWhenElse s portTable) xs
-
-parseWhenElse:: String -> [(String,Port)] -> WhenElse -> EnvSession ([Backtrack],Backtrack)
+parseWhenElse:: String -> [(String,Port)] -> WhenElse -> EnvSession (Backtrack,Backtrack)
 parseWhenElse s portTable (WhenElse wform expr) = do
   resultWform <- parseWform s portTable wform
   resultGaurd <- parseExpr s portTable expr
   --volgens mij is resultWform altijd maar 1 element
   return (resultWform,resultGaurd)
 
-
--}
 --verbind de meegegeven geparse delen aan het meegegeven architectuurElement.
 connect:: [Backtrack] -> ArchElem () -> String -> Backtrack
 connect xs m name = (Backtrack m allWires allElems)
@@ -256,19 +251,19 @@ connect xs m name = (Backtrack m allWires allElems)
 
 --lijkst heel sterk op connect, misschien 1 algemenere functie maken die beide afhandeld?
 -- nog niet monadisch herschreven --------
-{-}
-connectSelects xs ((mux@(Mux _ _ _ selectNames _)),wires,elems,n,m) name
-     =(mux,allWires,allElems,finalN,finalM)
-       where
-        newWires=map makeNewWire (zip (map (getHighest.outportOf.get1out5) xs) (map getHighest selectNames))
-        allElems=(map get1out5 xs) ++ concat (map get3out5 xs) ++ elems
-        allWires=newWires ++ concat (map get2out5 xs) ++ wires
-        finalN= get4out5 (last xs)
-        finalM= get5out5 (last xs)
-        makeNewWire (x,i)=Wire (Just name) x i ()
--}
+connectSelects :: [Backtrack] -> Backtrack -> String -> Backtrack
+connectSelects xs c name = Backtrack mux allWires allElems
+  where
+    (mux@(Mux _ _ _ selectNames _)) = archElem c
+    newWires=map makeNewWire (zip (map (getHighest.outportOf.archElem) xs) (map getHighest selectNames))
+    allElems=(map archElem xs) ++ concat (map prevArchElems xs) ++ prevArchElems c
+    allWires=newWires ++ concat (map wires xs) ++ wires c
+    makeNewWire (x,i)=Wire (Just name) x i ()
+
 ------------------------ END MUXES ------------------------------------
 
+parseWform :: String -> [(String, Port)] -> Wform -> EnvSession Backtrack
+parseWform s portTable (Wform f) = parseWformElems s portTable f 
 
 -- We expect only one WFormElem
 parseWformElems :: String -> [(String,Port)] -> [WformElem] -> EnvSession Backtrack
@@ -348,13 +343,12 @@ parseExpr s portTable (x :*: y)   =parseBinExpr s portTable "*" x y
 parseExpr s portTable (x :/: y)   =parseBinExpr s portTable "/" x y
 parseExpr s portTable (x :**: y)  =parseBinExpr s portTable "**" x y
 
-{- UnairyExpr moet nog monadisch worden herschreven ----
 --these are all the standard unairy operators that are defined in Expr, they're all parsed in the same way:
-parseExpr s portTable (Neg x) n m     =parseUnairyExpr s portTable "neg" x n m
-parseExpr s portTable (Pos x) n m     =parseUnairyExpr s portTable "pos" x n m
-parseExpr s portTable (Abs x) n m     =parseUnairyExpr s portTable "abs" x n m
-parseExpr s portTable (Not x) n m     =parseUnairyExpr s portTable "not" x n m
--}
+parseExpr s portTable (Neg x)     =parseUnairyExpr s portTable "neg" x
+parseExpr s portTable (Pos x)     =parseUnairyExpr s portTable "pos" x
+parseExpr s portTable (Abs x)     =parseUnairyExpr s portTable "abs" x
+parseExpr s portTable (Not x)     =parseUnairyExpr s portTable "not" x
+
 
 --This function parses a binary expression. name is imply the name the Operator will get.
 --It first parses its sub expressions recursivly. Then it creates the current operator. 
@@ -380,22 +374,21 @@ parseBinExpr s portTable name x y = do
       result=connect parsedsubOps currOperator "an expression wire"
   return result
 
------ nog niet monadisch herschreven ---------
-{-}
 --Parses unairy expressions in the same way as the binary expressions:
-parseUnairyExpr :: String -> [(String,Port)] -> String -> Expr -> Int -> Int -> (ArchElem (),[Wire ()],[ArchElem ()],Int,Int)
-parseUnairyExpr s portTable name x n m=result 
-  where
-    currOperator=Operator ("operatorId" ++ m) name ins out ()
-    ins=[portLike ("newPortId" ++ n) portType]
-    out=portLike ("newPortId" ++ (n+1)) portType
+parseUnairyExpr :: String -> [(String,Port)] -> String -> Expr -> EnvSession Backtrack
+parseUnairyExpr s portTable name x = do
+    n1 <- getNewId
+    n2 <- getNewId
+    n3 <- getNewId
+    parsedsubOp <- parseExpr s portTable x
+    let portType=sureLookup s portTable
+        --although this is a valid Port, it may not be unique. therefoe we use a portLike instead of this excact port for the outport.
+        ins=[portLike ("newPortId" ++ n1) portType]
+        out=portLike ("newPortId" ++ n2) portType
+        currOperator=Operator ("operatorId" ++ n3) name ins out ()
+        result=connect [parsedsubOp] currOperator "an expression wire"
+    return result
 
-    parsedsubOp=[parseExpr s portTable x (n+2) (m+1)]
-
-    portType=sureLookup s portTable --although this is a valid Port, it may not be unique. therefoe we use a portLike instead of this excact port for the outport.
-    result=connect parsedsubOp currOperator "an expression wire" --Ik gebruik nu ook hier connect i.p.v. de dingen expliciet uit te schrijven omdat dit algemener is en meer compositioneel is, wat in het onderhoudt mogelijk handig is.
-
--}
 parseFCall s portTable (FCall (NSimple (Basic "to_signed"))
   [Nothing :=>: ADExpr (PrimLit x)
   ,Nothing :=>: ADExpr (PrimLit y)])
@@ -478,16 +471,15 @@ parseInsUnit (IUEntity name) = do
   vhdl <- searchVHDLsById filename
   parseDesignFile vhdl
 
-parsePMapAspect :: [AssocElem] -> ([Wire ()], [ArchElem ()])
-parsePMapAspect [] = ([],[])
-parsePMapAspect(a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):[]) = (wire,[])
+parsePMapAspect :: [AssocElem] -> (ArchElem (), [Wire ()], [ArchElem ()])
+parsePMapAspect(a@((Just start) :=>: ADExpr (PrimName (NSimple destination))):[]) = (resolve,[],[])
   where
-    wire = [(Wire Nothing (parseSimpleName start) (parseSimpleName destination) ())]
-parsePMapAspect (a@((Just destination) :=>: ADExpr (PrimName (NSimple start))):ass) = (wire:recursiveWires, ref:recursiveRefs)
+    resolve = (PortReference (SinglePort (parseSimpleName destination)))
+parsePMapAspect (a@((Just destination) :=>: ADExpr (PrimName (NSimple start))):ass) = (resolve, wire:recursiveWires, ref:recursiveRefs)
   where
     wire = (Wire Nothing (parseSimpleName start) (parseSimpleName destination) ())
     ref = (PortReference (SinglePort (parseSimpleName start)))
-    (recursiveWires, recursiveRefs) = parsePMapAspect ass
+    (resolve, recursiveWires, recursiveRefs) = parsePMapAspect ass
 
 -- Searches the list of rendered VHDL files by clash for the 
 -- designfile that has the given id
@@ -547,9 +539,7 @@ resolveassociation table ins i =resolveAssociationNamed table ins i i
 
 resolveAssociationNamed :: [(ArchElem (), Backtrack2)] -> [String] -> String -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
 resolveAssociationNamed table ins outName x --x is a signaalname that can be found in a PortReference
--- HACKED, Door de error weg te halen en de informatie uit het Backtrack element terug te geven, werkt het Function in function voorbeeld
--- |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden: "++ show tableOut++"\n  ins are:" ++ (show ins)
-  |(allRelated == []) && (not (isIn (untillDot x))) = (newTable{- ???-}, (wires $ bt(snd(head table)),[archElem $ bt(snd(head table))]))
+  |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden: \n ins are:" ++ (show ins)
   |otherwise =(newTable,result)
    where
      toBeResolvedReference=(PortReference $ SinglePort x)
@@ -573,7 +563,7 @@ resolveAssociationNamed table ins outName x --x is a signaalname that can be fou
      inWire=Wire (Just x) x outName ()
      concatted = (concat $ fst unzipped, concat $ snd unzipped)
      unzipped = unzip checkAll
-     -- Hier gebleven met herschrijven
+
      (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x) table currRess
 
 resolveFoundAssociation ins outName x table currRes
