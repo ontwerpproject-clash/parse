@@ -87,7 +87,7 @@ data Backtrack =
 -- | are encapsuled in a Backtrack2 record.
 data Backtrack2 =
   Backtrack2 {
-    bt   :: Backtrack,
+    bt   :: Backtrack, --I really find the name bt wrong... It doesn give any direction of what to expect. the same goes for Backtrack. please change this Vincent.
     seen :: Bool
   } deriving (Eq, Show)
 
