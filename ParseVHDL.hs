@@ -537,8 +537,8 @@ removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
   | x `elem` ins = (fst niksVeranderd, snd niksVeranderd) --HACKED??
   | otherwise = (fst r , snd r)
     where
-      r=  removeReferences ((ws  \\ [w] )  ++ (fst newReferences),(snd newReferences) ++ as ) table ins 
-      (_,newReferences) = resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof. Het kan zijn dat dit altijd goed gaat vanwege lazy evaluation
+      r=  removeReferences ((ws  \\ [w] )  ++ (fst newReferences),(snd newReferences) ++ as ) newTable ins 
+      (newTable,newReferences) = resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof. Het kan zijn dat dit altijd goed gaat vanwege lazy evaluation
       
       (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
       niksVeranderd=  removeReferences (ws,as) table ins
