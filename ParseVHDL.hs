@@ -538,7 +538,7 @@ removeReferences (ws,(a@(PortReference (SinglePort x)):as)) table ins
   | otherwise = (fst r , snd r)
     where
       r=  removeReferences ((ws  \\ [w] )  ++ (fst newReferences),(snd newReferences) ++ as ) table ins 
-      (_,newReferences) = resolveAssociationNamed table ins i x x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof. Het kan zijn dat dit altijd goed gaat vanwege lazy evaluation
+      (_,newReferences) = resolveAssociationNamed table ins i x --mogelijk moeten alle associaties eerder worden verholpen om i te kunnen vinden, dan krijgen we de error in findInof. Het kan zijn dat dit altijd goed gaat vanwege lazy evaluation
       
       (i,w)= findInof x ws  --w dient nu verwijderd te worden (het nesten van signalen wordt nl niet toegestaan)
       niksVeranderd=  removeReferences (ws,as) table ins
@@ -569,10 +569,10 @@ myGeneralizedLookup (r@(PortReference (SinglePort x))) (((PortReference (SingleP
    |otherwise                     = (myGeneralizedLookup r ps)
 
 resolveassociation ::  LookupTable2 -> [String] -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
-resolveassociation table ins i =resolveAssociationNamed table ins i i i
+resolveassociation table ins i =resolveAssociationNamed table ins i i
 
-resolveAssociationNamed :: [(ArchElem (), Backtrack2)] -> [String] -> String -> String  -> String -> (LookupTable2,([Wire ()],[ArchElem ()]))
-resolveAssociationNamed table ins outName x firstX --x is a signaalname that can be found in a PortReference
+resolveAssociationNamed :: [(ArchElem (), Backtrack2)] -> [String] -> String -> String  ->  (LookupTable2,([Wire ()],[ArchElem ()]))
+resolveAssociationNamed table ins outName x --x is a signaalname that can be found in a PortReference
   |(allRelated == []) && (not (isIn (untillDot x))) = error $ "We kunnen " ++ x ++ " niet vinden: \n ins are:" ++ (show ins)
   |otherwise =(newTable,result)
    where
@@ -597,13 +597,13 @@ resolveAssociationNamed table ins outName x firstX --x is a signaalname that can
      result |isIn (untillDot x)            =([inWire],[])
             |otherwise                     =concatted
      isIn y= elem y ins
-     inWire=Wire (Just x) firstX outName ()
+     inWire=Wire (Just x) x outName ()
      concatted = (concat $ fst unzipped, concat $ snd unzipped)
      unzipped = unzip checkAll
 
-     (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x firstX) table currRess
+     (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x) table currRess
 
-resolveFoundAssociation ins outName x firstX table currRest
+resolveFoundAssociation ins outName x table currRest
   | alGehad = (table,algehadresult)
   | otherwise = (resTable,result)
     where
@@ -628,7 +628,7 @@ resolveFoundAssociation ins outName x firstX table currRest
      --newX=getHighest(outportOf firstElem)
      PortReference (SinglePort newX) = firstElem
      solveRecursivly = ((fst recursivlyResolved) ++ (wires $ bt currRes) , (snd recursivlyResolved) ++ (prevArchElems $ bt currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
-     (newTable,recursivlyResolved)=resolveAssociationNamed table2 ins newOutname newX firstX
+     (newTable,recursivlyResolved)=resolveAssociationNamed table2 ins newOutname newX
 
      setToTrue :: (ArchElem (),Backtrack2) -> (ArchElem (),Backtrack2) 
      setToTrue = (\(a,bt) -> (a,bt{seen=True}))

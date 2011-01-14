@@ -7,9 +7,12 @@ type Word = Signed D8
 
 {-# ANN tupleTest TopEntity #-}
 tupleTest :: Word -> State (Word,Word) -> (State (Word,Word) , (Word,(Word,Word)))
-tupleTest x state = (state, (z,y))
+tupleTest x state = (state, (p,t))
                       where y    = (x,x)
-                            z    = snd y
+                            z    = (\(_,q)-> q) y
+                            r=(x,y,x)
+                            p=(\(q,_,_)-> q) r
+                            t=(\(_,q,_)-> q) r
 
 
 {- # ANN program TestInput #-}
