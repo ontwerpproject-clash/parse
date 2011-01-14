@@ -556,11 +556,11 @@ removeReferences (ws,[]) table ins = (ws,[])
 findInof :: PortId -> [Wire a] -> (PortId,Wire a)
 findInof p []=error $ "kan " ++ show p ++ " niet vinden, blijkbaar moeten alle wires eerst worden gevonden aangezien er nu 1 mist.."
 findInof p ((w@(Wire name x y _)):ws)
-  |name /= Nothing && n == x = (y,w)
+--  |name /= Nothing && n == x = (y,w)
   |x==p       = (y,w)
   |otherwise = findInof p ws
-  where
-    Just n = name
+ -- where
+ --   Just n = name
     
 myGeneralizedLookup :: ArchElem () -> [(ArchElem (),Backtrack2)] -> [(PortId,Backtrack2)]
 myGeneralizedLookup (PortReference (SinglePort x)) []=[]
