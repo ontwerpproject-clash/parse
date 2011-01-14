@@ -1,0 +1,72 @@
+Title: removing Portreferences: going from a lookup table and an empty function to a single Function representation
+
+subTitle: introduction
+
+In this step of the parsing of functions we have to put everything together. 
+We do this by recursivly removing PortReferences by looking them up in the parsedCsTable. We ofcource need a place to start. The out signals of the Functions we are parsing provide us with that starting point. We therefore connect all the elements backwards, starting from the last elements of a function untill we eventually reach the start. With each Portreference we remove we can get additional Wires and architecture elements (possibly including Portreferences) than should go in the internals of our function.
+Every portReference is only looked up once and a boolean is added to the parsedCsTable to do so. When a portReference is found a second time, all that will be done is that a wire is made to the the already unpacked results of the first occurence. When an in signal is found there will simalarily just make a wire to the corresponding entrance of the function. Once we're done we add the found internals to the function and return it.
+
+subTitle: initial data:
+We already have a LookupTable2 (parsedCsTable) mapping PortReferences to their parsing results, which may again have Portreferences in them. PortReferences are representations of the signals used in the original AST. Therefore for a vhdl statements like x<= someExpression  in our table will have an entry mapping this x, wrapped in a portReference, to the way someExpression is represented in our dataStruct.
+
+
+It's important to note that there are signals from the original VHDL AST that aren't in our table. The table is made with only knowledge about the internals of the functions we're currently parsing. Thus the signals coming into the function we're currently parsing aren't in there (as well as any signal that the function doesn't use, but that's a good thing since we won't come across them in this step).
+
+Therefore to remove all the portreferences and get the hardware specefication we want we must make sure we don't try to look up an in signal in this table. This means we'll always have to check wether a signal is an in signal before looking it up in the table.
+
+We also know the signals coming in and out of the functions we're making at the moment and we already have that function except for the fact that it doesn't have internal elements yet.
+
+subTitle: The main order of this parsing phase:
+1) add a boolean False to each table entry in parsedCsTable
+2) Exchange the PortReferences of all the out signals of the function we're parsing, with their representation.
+3) Add those results together in a list of architecture elements and a list of wires and add some wires to connect everything.
+4) Exchange all the Portreferences in these results with their representation and do so recursivly since every representation can again have PortReferences. Then correctly link these results together.
+5) add the the Wires and architecture elements found in (4) as internals to the function we're parsing.
+
+
+subTitle: A more detailed explanation of the steps
+
+In step 1 we add a boolean value too each table entry to indicate wether we've used them already.  This is used to avoid duplication of hardware elements and more inportantly, infinite loops. Of cource at the start we haven't used any of them yet and they're therefore all set to false.
+
+step 2 is done by the resolveassociation which in turn simply passes on to resolveAssociationNamed. from resolveAssociationNamed we get the results used in step 3, but we also get an updated table parsedCsTableNew. Which is the same except that since we already found some porreferences, some table entries have already been set to false. We'll need to resolve additional references in step 4 and we'll use this updated table instead of the old one to avoid needless duplication of hardware elements. For further details on step 2 please read "resolveAssociationNamed explenation" below.
+
+step 3 is trivial
+
+in step 4 we go through every architecture element internal to our function. 
+If we find something that isn't a portReference we simply leave it in and contineu to the next element. We use recursion over the architecture elements. We therefore place the element at the head of a list still to be contructed through recursion and remove it from consideration for the recursive call. When we find portReferences, the set of wires may change. We therefore always pass on all the wires we have to the recursive call and return the wires found in the recursie call.
+
+When we find a portReference we'll need to remove it in exchange for it's representation. We did a simelar thing in step 2. Therefore we'll simply try to use resolveAssociationNamed again. It will give back a new table which we'll simply pass on recursivly. And we can simply use that function on all portReferences we come across. There are some complications though. We need to know where the portReference is linked too (it's not an outPort of our function anymore) and parseExpr has made a wire to this portReference (and we can't have a wire going too a nonexistingelement). 
+Luckely both problems are closely related since that wrong wire actually indicates the String we need to give resolveAssociationNamed as its outname. It's in fact a wire going from x to y, where x is the String thats wrapped in the portreference we're resolving. y in this case is the outname.
+ 
+Recall that our recursion is backwards, we already have the things where the results of our references are going to. This wire therefore already exists once we find this PortReference. Thus we can search for this Wire and find our outname to pass it to resolveAssociationNamed (we can search for it because we have all the wires currently made as data and for every portreference there will be exactly one such wire, meaning we can simply search for one wire going from the right name. Even if there are multible wires satisfying that name condition there is axactly one per portReference and we'll eventually find them all exactly once (we remove them after they're found). The order in which we find those wiresdoesn't amtter since the procedure of removing a reference isn't dependend on the location within the AST.). Afterwards we remove the wrong wire from our set of wires. resolveAssociationNamed gives us back additional wires and architecture elements. These elements may have portReferences in that and therefore we simply call removeReferences over everything we already had (excluding this portreference and the wring wire) and the things we got from resolveAssociationNamed. Each portReference will only be resolved once and there's only a finite ammpount of porreferences because the original VHDL AST only has a finite amount of signals. Therefore this process will eventually terminate having resolved all references.
+
+We already had an empty function and we only needed to add the internal components to it. Step 4 already gave us the internal components. Thus Step 5 is trivial.
+
+
+subTitle: resolveAssociationNamed explenation
+
+resolveAssociationNamed takes a to be resolved signal x and resolves it using the parsedCsTable and the list of in signals. It also needs an outName to add the proper wires. As already mentioned we link the results backwards. Therefore the result of resolving x needs to go to another element. The outname indicates the Portname of that elements to which to wire should be linked. In step 3 these are simply the names of the outport of our to be parsed function.
+
+resolveAssociationNamed (step 3) does the following things:
+1.a)if x is an in signal we simply connect x to outname with a wire and we're done.
+1.b) x is not an in signal. Therefore we should be able to find it in the table.look up x in the parsedCsTable.
+2.a) If we didn't find anything in parsedCsTable. Since this shouldn't happen we give an error message and we're done.
+2.b.a) If we found the exact signal we take it and our currRes will be [(x,exact)] with exact the exact result.
+3.b.b) Otherwise we have a list with all the things related to x (this happens with selected names: When searching for x it could be that we find an entry for x.A and an entry for x.B). We'll simply take currRes te be everything we found.
+3) For each 2-tuple in currRes we resolve the association belonging to it with resolveFoundAssociation.
+4) We gather the results of every element in currRes and pass back those results.
+
+resolveFoundAssociation (step 3 of resolveAssociationNamed) in turn does the following:
+1a) if we already resolved the current association we only need to add the appropriate wire to connect that result and are done.
+1b) otherwise we look at the first element of the parseResult (see step 2).
+2) we now see an association for the first time. In order for other calls to resolveFoundAssociation to not find it unused again we immidiatly change it's seen value in the table to true. 
+3a) if the first element isn't a portReference we simply take that parse result together with an extra wire connecting it to Outname as our result.
+3b) if that element is a portreference pointing to an in signal we only need to add a wire connecting it to the outname.
+3c) if it's another portreference we use resolveAssociationNamed to solve it recursivly. We then take those results together with what we found in the parsedCsTable for the current association. Our association that simply maps to that. resolveAssociationNamed also gives us an updated table whcih we then replace our current table with.
+4 We return our updated table and our result as found in 3.
+
+Please note that resolveFoundAssociation currently lays out some wires that aren't correct in multiport structures (without multiports there haven't been any problems). We've haven't succeeded in fixing this even though spending a considerable ammount of time on it. However since the only problem is that the suffix of Selected names in our wires isn't correct (our multiports currently use a simelar notation as selected names due to the way of parsing; "like MultiPort x [SinglePort x.A,SinglePort x.B]") it shouldn't be that much of a problem for the gui. Since the bug has minor consequences on our application we won't spend anymore time trying to correct this bug and we'll simply leave it as it is for now. 
+
+
+
+
