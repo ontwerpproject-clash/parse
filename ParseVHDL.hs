@@ -622,9 +622,9 @@ resolveFoundAssociation ins outName x table currRest
 
      newOutname=outName ++ (fst currRest \\ x)--example: we searhced for x =arg. We found fst currRest=arg.A, so we should paste the .A behind  resz=outName
      
-     newWire = Wire (Just (fst currRest ++ " en " ++ outName ++ " en " ++ x)) wireStartId newOutname ()
+     newWire = Wire (Just (fst currRest)) wireStartId newOutname ()
      wireStartId= (untillDot (getHighest(outportOf firstElem))) ++ (fromdot x)
-     inWire=Wire (Just (fst currRest ++ " en " ++ outName ++ " en " ++ x)) newX newOutname ()
+     inWire=Wire (Just (x)) newX newOutname ()
      --newX=getHighest(outportOf firstElem)
      PortReference (SinglePort newX) = firstElem
      solveRecursivly = ((fst recursivlyResolved) ++ (wires $ bt currRes) , (snd recursivlyResolved) ++ (prevArchElems $ bt currRes)) --signalen mogen niet rechtstreeks recursief zijn opgescheven, omdat anders hier een oneindige loop ontstaat. Dus geen rechtstreekse a<- b, b<- a of varianten hierop. recursie van signalen binnen elementen zoals registers zal hier geen probleem geven.
