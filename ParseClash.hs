@@ -15,6 +15,7 @@ OpType,Value
 -- local imports
 import Datastruct
 import ParseVHDL
+import Ppr
 
 -- GHC API
 import GHC.Paths ( libdir )
@@ -31,5 +32,8 @@ parseClashFiles :: [FilePath] -> IO (ArchElem ())
 parseClashFiles xs
   = do
     vhdls <- getVHDL libdir xs
-    return $ parseVhdlAsts vhdls
+    let result = parseVhdlAsts vhdls
+    putStrLn ""
+    putStrLn $ prettyprint result
+    return result
 

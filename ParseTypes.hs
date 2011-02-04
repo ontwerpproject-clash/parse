@@ -7,15 +7,6 @@ import Datastruct
 import Language.VHDL.AST hiding (Function)
 import Data.Maybe(catMaybes)
 
---parseVhdlAsts :: [(VHDLId, DesignFile)] -> ArchElem ()
-testParseTypes vhdls
-  = types
-  where
-    typesAst = head vhdls
-    topentityAst = vhdls !! 1
-    types = parseTypes typesAst
-
-
 parseTypes :: (VHDLId, DesignFile) -> [(VHDLId,(PortId -> Port))]
 parseTypes (id,designfile)
   | id /= (Basic "types") =	error $ "parseTypes: got id: " ++ show id ++ ", expecting types"

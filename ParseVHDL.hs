@@ -103,7 +103,7 @@ parseIfaceSigDec (IfaceSigDec sigId direction t) = do
         Just getPort = found
         isIn = (direction==In )
         result 
-          | isNothing found = error $ "Could not find type:" ++ show t
+          | isNothing found = error $ "parseIfaceSigDec: Could not find type:" ++ show t
           | otherwise = (getPort (parseId sigId),isIn)
     return result
 
@@ -117,7 +117,7 @@ buildPortTableEntry (IfaceSigDec id _ t) = do
     let found = lookup t typeTable
         Just getPort = found
         result
-          | isNothing found = error $ "Could not find type:" ++ show t
+          | isNothing found = error $ "buildPortTableEntry: Could not find type:" ++ show t
           | otherwise = ((parseId id), getPort (parseId id))
     return result
      
@@ -603,6 +603,15 @@ resolveAssociationNamed table ins outName x --x is a signaalname that can be fou
 
      (newTable,checkAll) = mapAccumL (resolveFoundAssociation ins outName x) table currRess
 
+
+resolveFoundAssociation
+  :: [String]
+     -> String
+     -> String
+     -> [(ArchElem (), Backtrack2)]
+     -> (PortId, Backtrack2)
+     -> ([(ArchElem (), Backtrack2)],
+         ([Wire ()], [ArchElem ()]))
 resolveFoundAssociation ins outName x table currRest
   | alGehad = (table,algehadresult)
   | otherwise = (resTable,result)

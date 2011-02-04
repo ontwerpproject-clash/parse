@@ -13,6 +13,7 @@ Library
     ghc-paths,
     transformers,
     data-accessor-template, data-accessor-transformers,
-    containers
+    containers,
+    pretty
   exposed-modules: ParseClash
-  other-modules: Datastruct, ParseTypes, ParseVHDL, ParseState, Helper
+  other-modules: Datastruct, ParseTypes, ParseVHDL, ParseState, Helper, Ppr
